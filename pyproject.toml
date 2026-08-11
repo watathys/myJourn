@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "myjourn"
+version = "0.1.0"
+description = "AI-powered personal journaling backend"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "alembic>=1.14",
+  "dateparser>=1.2",
+  "fastapi>=0.115",
+  "google-api-python-client>=2.150",
+  "google-auth>=2.35",
+  "google-auth-oauthlib>=1.2",
+  "openai>=1.60",
+  "pgvector>=0.2",
+  "psycopg2-binary>=2.9",
+  "pyjwt[crypto]>=2.8",
+  "pydantic-settings>=2.7",
+  "sqlalchemy>=2.0",
+  "tzlocal>=5.0",
+  "uvicorn[standard]>=0.34",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28",
+  "pytest>=8.3",
+  "ruff>=0.9",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/app"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["UP045"] # Optional is required for runtime-evaluated annotations on Python 3.9.

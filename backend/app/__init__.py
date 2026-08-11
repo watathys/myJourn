@@ -1,0 +1,1 @@
+"""MyJourn backend package."""
