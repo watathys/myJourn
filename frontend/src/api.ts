@@ -90,7 +90,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const apiBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')
+  let apiBase = (import.meta.env.VITE_API_URL || '/api').trim().replace(/\/$/, '')
+  if (apiBase.includes('your-actual-backend-url') || apiBase.includes('example.com')) {
+    apiBase = '/api'
+  } else if (apiBase && !apiBase.startsWith('http://') && !apiBase.startsWith('https://') && !apiBase.startsWith('/')) {
+    apiBase = `https://${apiBase}`
+  }
+
   const response = await fetch(`${apiBase}${path}`, {
     ...init,
     headers,
