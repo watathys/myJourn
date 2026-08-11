@@ -97,6 +97,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     apiBase = `https://${apiBase}`
   }
 
+  if (!apiBase.endsWith('/api')) {
+    apiBase = `${apiBase}/api`
+  }
+
   const response = await fetch(`${apiBase}${path}`, {
     ...init,
     headers,
