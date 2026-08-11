@@ -90,14 +90,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(`/api${path}`, {
+  const apiBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')
+  const response = await fetch(`${apiBase}${path}`, {
     ...init,
     headers,
   })
 
   if (!response.ok) {
     const error = await response.json().catch(() => null)
-    const err = new Error(error?.detail || 'Something went wrong. Please try again.')
+    const fallbackMsg = `API request to ${path} failed with status ${response.status}${response.statusText ? ` (${response.statusText})` : ''}. Please ensure your backend is running.`
+    const err = new Error(error?.detail || fallbackMsg)
     ;(err as Error & { status?: number }).status = response.status
     throw err
   }
