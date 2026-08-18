@@ -66,10 +66,22 @@ export type SpellingCorrection = {
   updated_at: string
 }
 
+export type WeeklyReflection = {
+  summary_narrative: string
+  what_went_well: string[]
+  what_was_hard: string[]
+  patterns_worth_noticing: string[]
+  suggested_focuses: string[]
+}
+
 export type WeeklyPlanningSession = {
   week_start_date: string
   started_at: string
   completed_at?: string | null
+  reflection_data?: WeeklyReflection | null
+  reflection_start_date?: string | null
+  reflection_end_date?: string | null
+  reflection_generated_at?: string | null
 }
 
 export type GoogleStatus = {
@@ -349,6 +361,15 @@ export function finishWeeklyPlanning(
   weekStartDate: string,
 ): Promise<WeeklyPlanningSession> {
   return request(`/users/${userId}/weekly-planning/sessions/${weekStartDate}/finish`, {
+    method: 'POST',
+  })
+}
+
+export function generateWeeklyReflection(
+  userId: string,
+  weekStartDate: string,
+): Promise<WeeklyPlanningSession> {
+  return request(`/users/${userId}/weekly-planning/sessions/${weekStartDate}/reflection`, {
     method: 'POST',
   })
 }

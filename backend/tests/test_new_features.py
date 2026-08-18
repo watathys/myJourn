@@ -19,7 +19,7 @@ class DummyAI:
         return "Hello! I noticed you enjoy running on weekends."
 
     def extract_json(self, *, system_prompt: str, user_prompt: str, schema_class: type[Any], **kwargs: Any) -> Any:
-        from app.ai.schemas import ParsedScheduleItem, PercyGoalExtracted
+        from app.ai.schemas import ParsedScheduleItem, PercyGoalExtracted, WeeklyReflectionAIResult
         if schema_class is PercyGoalExtracted:
             return PercyGoalExtracted(
                 goal_text="Go to the gym",
@@ -36,6 +36,14 @@ class DummyAI:
                 remind_time_str=None,
                 target_count=1,
                 is_daily_recurring=False,
+            )
+        if schema_class is WeeklyReflectionAIResult:
+            return WeeklyReflectionAIResult(
+                summary_narrative="It was a steady week balancing project work with personal rest.",
+                what_went_well=["Finished key tasks", "Stayed consistent with journal entries"],
+                what_was_hard=["Felt sluggish on Tuesday afternoon"],
+                patterns_worth_noticing=["Noticed higher energy after morning walks"],
+                suggested_focuses=["Keep morning walks consistent"],
             )
         raise NotImplementedError
 
@@ -276,5 +284,57 @@ def test_natural_language_schedule_parsing() -> None:
     assert dt.hour == 15
     assert cnt == 7
     assert rec is True
+
+
+def test_weekly_reflection_feature(client: TestClient, session: Session) -> None:
+    from datetime import date
+    from app.models import JournalEntry, LifeInsight, User, WeeklyPlanningSession
+
+    app.dependency_overrides[get_journal_ai] = lambda: DummyAI()
+
+    user = User()
+    session.add(user)
+    session.commit()
+
+    # Add a journal entry in the past week
+    entry = JournalEntry(
+        user_id=user.id,
+        date=date(2026, 8, 5),
+        raw_transcript="Felt great today, finished key tasks and went for a walk.",
+        formatted_narrative="Felt great today, finished key tasks and went for a walk.",
+        alignment_summary="Aligned with goals.",
+        context_summary="Felt rejuvenated after a morning walk and key task progress.",
+    )
+    session.add(entry)
+
+    # Add a life insight
+    insight = LifeInsight(
+        user_id=user.id,
+        journal_entry_id=entry.id,
+        insight_text="Morning walks boost focus and energy.",
+    )
+    session.add(insight)
+    session.commit()
+
+    # 1. Start weekly planning session for 2026-08-10 (Monday)
+    resp = client.post(
+        f"/api/users/{user.id}/weekly-planning/sessions",
+        json={"week_start_date": "2026-08-10"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["week_start_date"] == "2026-08-10"
+    assert data["reflection_data"] is not None
+    assert "summary_narrative" in data["reflection_data"]
+    assert len(data["reflection_data"]["what_went_well"]) > 0
+
+    # 2. Trigger explicit reflection endpoint
+    resp2 = client.post(
+        f"/api/users/{user.id}/weekly-planning/sessions/2026-08-10/reflection",
+    )
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    assert data2["reflection_data"]["summary_narrative"] == "It was a steady week balancing project work with personal rest."
+
 
 

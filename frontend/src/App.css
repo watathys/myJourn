@@ -225,6 +225,29 @@ svg { flex: 0 0 auto; }
 .weekly-card { background: white; border: 1px solid #dfdcd3; border-radius: 16px; box-shadow: 0 12px 38px rgba(54, 48, 37, .05); margin-top: 26px; padding: 25px 27px; }
 .weekly-completed { background: #f3f7f2; border-color: #c7dec6; }
 .weekly-finish-bar { display: flex; justify-content: flex-end; margin-top: 28px; }
+
+.reflection-card { position: relative; }
+.reflection-subtitle { color: #8c877d; font-size: 13px; margin: 4px 0 16px; }
+.reflection-loading { align-items: center; color: #5c6858; display: flex; gap: 10px; font-size: 14px; margin-top: 16px; padding: 20px; background: #f8f9f7; border-radius: 12px; }
+.reflection-content { display: grid; gap: 18px; margin-top: 16px; }
+.narrative-section { background: #f9f8f4; border-left: 3px solid var(--forest); border-radius: 8px; padding: 14px 18px; }
+.narrative-text { color: #33312b; font-size: 15px; line-height: 1.6; margin: 0; }
+.reflection-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 600px) { .reflection-grid { grid-template-columns: 1fr; } }
+.reflection-box { border-radius: 12px; padding: 14px 16px; }
+.reflection-box h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.03em; margin: 0 0 10px; text-transform: uppercase; }
+.reflection-box ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.reflection-box li { color: #3d3a33; font-size: 14px; line-height: 1.5; }
+.positive-box { background: #f2f7f2; border: 1px solid #d2e4d2; }
+.positive-box h3 { color: #2c5931; }
+.hard-box { background: #faf4f2; border: 1px solid #ebdcd7; }
+.hard-box h3 { color: #7a4237; }
+.pattern-box { background: #f6f5fb; border: 1px solid #e1def2; }
+.pattern-box h3 { color: #4a3e75; }
+.focus-box { background: #fdf8eb; border: 1px solid #f2e3c6; }
+.focus-box h3 { color: #73531b; }
+.reflection-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+.reflection-empty { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; margin-top: 12px; }
 .finish-planning-btn { display: inline-flex; align-items: center; gap: 8px; padding-left: 28px; padding-right: 28px; }
 .reminder-list { display: grid; gap: 8px; list-style: none; margin: 18px 0 0; padding: 0; }
 .reminder-list li { align-items: center; background: #f5f4ef; border-radius: 11px; display: flex; gap: 12px; justify-content: space-between; padding: 12px 14px; }

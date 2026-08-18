@@ -164,12 +164,24 @@ class UserScopedRequest(BaseModel):
     user_id: str
 
 
+class WeeklyReflectionSchema(BaseModel):
+    summary_narrative: str
+    what_went_well: list[str]
+    what_was_hard: list[str]
+    patterns_worth_noticing: list[str] = Field(default_factory=list)
+    suggested_focuses: list[str]
+
+
 class WeeklyPlanningSessionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     week_start_date: date
     started_at: datetime
     completed_at: Optional[datetime] = None
+    reflection_data: Optional[WeeklyReflectionSchema] = None
+    reflection_start_date: Optional[date] = None
+    reflection_end_date: Optional[date] = None
+    reflection_generated_at: Optional[datetime] = None
 
 
 class StartWeeklyPlanningRequest(BaseModel):

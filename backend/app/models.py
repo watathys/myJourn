@@ -5,7 +5,7 @@ from __future__ import annotations
 import enum
 import uuid
 from datetime import date, datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -362,6 +362,12 @@ class WeeklyPlanningSession(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reflection_data: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    reflection_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    reflection_end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    reflection_generated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 

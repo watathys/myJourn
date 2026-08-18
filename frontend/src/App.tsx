@@ -11,13 +11,14 @@ import {
   RemindersIllustration,
   ReviewLastWeekIllustration,
   SevenDaysWinsIllustration,
+  WeeklyReflectionIllustration,
 } from './Illustrations'
 import {
   acknowledgeTaskSnooze, chatWithPercy, createGoalWithPercy, createPercyReminder,
   createSpellingCorrection, createTask, createWeeklyGoal, deleteJournalEntry,
   deletePercyReminder, deleteSpellingCorrection, disconnectGoogle, dismissLifeInsight,
-  dismissPercyReminder, finishWeeklyPlanning, getEntries, getGoogleAuthorizeUrl,
-  getGoogleStatus, getLifeInsights, getNorthStar, getPercyReminders,
+  dismissPercyReminder, finishWeeklyPlanning, generateWeeklyReflection, getEntries,
+  getGoogleAuthorizeUrl, getGoogleStatus, getLifeInsights, getNorthStar, getPercyReminders,
   getSpellingCorrections, getTasks, getWeeklyGoals, getWeeklyPlanningSession,
   markLifeInsightRead, processEntry, reorderGoals, reorderTasks, saveNorthStar,
   startWeeklyPlanning, updateGoal, updateJournalEntry, updateTask, type Goal,
@@ -413,6 +414,7 @@ function App() {
   const [weeklySession, setWeeklySession] = useState<WeeklyPlanningSession | null>(null)
   const [weeklySessionChecked, setWeeklySessionChecked] = useState(false)
   const [startingWeeklyPlanning, setStartingWeeklyPlanning] = useState(false)
+  const [generatingReflection, setGeneratingReflection] = useState(false)
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null)
   const [connectingGoogle, setConnectingGoogle] = useState(false)
   const [googleNotice, setGoogleNotice] = useState('')
@@ -1855,6 +1857,20 @@ function App() {
     }
   }
 
+  async function handleGenerateWeeklyReflection() {
+    if (!userId || generatingReflection) return
+    setGeneratingReflection(true)
+    setError('')
+    try {
+      const updatedSession = await generateWeeklyReflection(userId, weekStartOf())
+      setWeeklySession(updatedSession)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to generate weekly reflection.')
+    } finally {
+      setGeneratingReflection(false)
+    }
+  }
+
   async function connectGoogle() {
     if (!userId || connectingGoogle) return
     setConnectingGoogle(true)
@@ -2384,17 +2400,165 @@ function App() {
                 </button>
               </div>
             ) : weeklySession.completed_at ? (
-              <div className="weekly-card weekly-gate weekly-completed">
-                <div className="card-title"><span><CircleCheck /></span><div><p>Weekly Planning</p><h2>Weekly planning complete!</h2></div></div>
-                <p className="alignment">
-                  Your goals and reminders for this week have been saved. You can view and check off your goals on your main journal page as you go!
-                </p>
-                <button className="ghost-button" disabled={startingWeeklyPlanning} onClick={reopenWeeklySession}>
-                  <RotateCcw /> Re-open weekly planning
-                </button>
-              </div>
+              <>
+                <div className="weekly-card weekly-gate weekly-completed">
+                  <div className="card-title"><span><CircleCheck /></span><div><p>Weekly Planning</p><h2>Weekly planning complete!</h2></div></div>
+                  <p className="alignment">
+                    Your goals and reminders for this week have been saved. You can view and check off your goals on your main journal page as you go!
+                  </p>
+                  <button className="ghost-button" disabled={startingWeeklyPlanning} onClick={reopenWeeklySession}>
+                    <RotateCcw /> Re-open weekly planning
+                  </button>
+                </div>
+
+                {weeklySession.reflection_data && (
+                  <div className="weekly-card reflection-card">
+                    <div className="card-title">
+                      <WeeklyReflectionIllustration />
+                      <div>
+                        <p>Weekly Digest</p>
+                        <h2>Weekly AI Reflection</h2>
+                      </div>
+                    </div>
+                    {weeklySession.reflection_start_date && weeklySession.reflection_end_date && (
+                      <p className="alignment reflection-subtitle">
+                        Covering {formatDate(weeklySession.reflection_start_date)} – {formatDate(weeklySession.reflection_end_date)}
+                      </p>
+                    )}
+                    <div className="reflection-content">
+                      <div className="reflection-section narrative-section">
+                        <p className="narrative-text">{weeklySession.reflection_data.summary_narrative}</p>
+                      </div>
+                      <div className="reflection-grid">
+                        <div className="reflection-box positive-box">
+                          <h3>What Went Well</h3>
+                          <ul>
+                            {weeklySession.reflection_data.what_went_well.map((item, idx) => (
+                              <li key={idx}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="reflection-box hard-box">
+                          <h3>What Was Hard</h3>
+                          <ul>
+                            {weeklySession.reflection_data.what_was_hard.map((item, idx) => (
+                              <li key={idx}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      {weeklySession.reflection_data.patterns_worth_noticing && weeklySession.reflection_data.patterns_worth_noticing.length > 0 && (
+                        <div className="reflection-box pattern-box">
+                          <h3>Patterns Worth Noticing</h3>
+                          <ul>
+                            {weeklySession.reflection_data.patterns_worth_noticing.map((item, idx) => (
+                              <li key={idx}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {weeklySession.reflection_data.suggested_focuses && weeklySession.reflection_data.suggested_focuses.length > 0 && (
+                        <div className="reflection-box focus-box">
+                          <h3>Suggested Focus for Next Week</h3>
+                          <ul>
+                            {weeklySession.reflection_data.suggested_focuses.map((item, idx) => (
+                              <li key={idx}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <>
+                <div className="weekly-card reflection-card">
+                  <div className="card-title">
+                    <WeeklyReflectionIllustration />
+                    <div>
+                      <p>Weekly Digest</p>
+                      <h2>Weekly AI Reflection</h2>
+                    </div>
+                  </div>
+                  {weeklySession?.reflection_start_date && weeklySession?.reflection_end_date && (
+                    <p className="alignment reflection-subtitle">
+                      Covering {formatDate(weeklySession.reflection_start_date)} – {formatDate(weeklySession.reflection_end_date)}
+                    </p>
+                  )}
+                  {generatingReflection ? (
+                    <div className="reflection-loading">
+                      <span className="button-spinner" />
+                      <span>Generating your weekly reflection...</span>
+                    </div>
+                  ) : weeklySession?.reflection_data ? (
+                    <div className="reflection-content">
+                      <div className="reflection-section narrative-section">
+                        <p className="narrative-text">{weeklySession.reflection_data.summary_narrative}</p>
+                      </div>
+                      <div className="reflection-grid">
+                        <div className="reflection-box positive-box">
+                          <h3>What Went Well</h3>
+                          <ul>
+                            {weeklySession.reflection_data.what_went_well.map((item, idx) => (
+                              <li key={idx}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="reflection-box hard-box">
+                          <h3>What Was Hard</h3>
+                          <ul>
+                            {weeklySession.reflection_data.what_was_hard.map((item, idx) => (
+                              <li key={idx}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      {weeklySession.reflection_data.patterns_worth_noticing && weeklySession.reflection_data.patterns_worth_noticing.length > 0 && (
+                        <div className="reflection-box pattern-box">
+                          <h3>Patterns Worth Noticing</h3>
+                          <ul>
+                            {weeklySession.reflection_data.patterns_worth_noticing.map((item, idx) => (
+                              <li key={idx}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {weeklySession.reflection_data.suggested_focuses && weeklySession.reflection_data.suggested_focuses.length > 0 && (
+                        <div className="reflection-box focus-box">
+                          <h3>Suggested Focus for Next Week</h3>
+                          <ul>
+                            {weeklySession.reflection_data.suggested_focuses.map((item, idx) => (
+                              <li key={idx}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      <div className="reflection-actions">
+                        <button
+                          className="ghost-button small"
+                          disabled={generatingReflection}
+                          onClick={handleGenerateWeeklyReflection}
+                        >
+                          <RotateCcw size={14} /> Regenerate weekly reflection
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="reflection-empty">
+                      <p className="alignment">
+                        A structured summary of your week's journal entries, specific wins, genuine struggles, and suggested focus areas.
+                      </p>
+                      <button
+                        className="primary-button"
+                        disabled={generatingReflection}
+                        onClick={handleGenerateWeeklyReflection}
+                      >
+                        {generatingReflection ? <span className="button-spinner" /> : <Sparkles size={16} />} Generate my weekly reflection
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <div className="weekly-card">
                   <div className="card-title"><RemindersIllustration /><div><p>From Percy & Reminders Tab</p><h2>Reminders for this week</h2></div></div>
                   {percyReminders.length ? (

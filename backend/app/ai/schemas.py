@@ -188,6 +188,48 @@ class ParsedScheduleItem(BaseModel):
     )
 
 
+class WeeklyReflectionAIResult(BaseModel):
+    """Structured output schema for the AI weekly reflection call."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    summary_narrative: str = Field(
+        min_length=1,
+        description=(
+            "A short overall narrative of the user's week (3-5 sentences), warm but honest tone, "
+            "grounded strictly in what actually appeared in that week's entries."
+        ),
+    )
+    what_went_well: list[str] = Field(
+        min_length=1,
+        description=(
+            "Specific wins, follow-throughs, or positive patterns, cited from actual entries "
+            "(not generic praise)."
+        ),
+    )
+    what_was_hard: list[str] = Field(
+        min_length=1,
+        description=(
+            "Genuine struggles or recurring friction points that came up, stated kindly "
+            "and non-judgmentally."
+        ),
+    )
+    patterns_worth_noticing: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Life insights that fired that week, plus optionally one new pattern if there is "
+            "clear 3+ day evidence within just this week (same evidence bar as rule 12, no single-day guesses)."
+        ),
+    )
+    suggested_focuses: list[str] = Field(
+        min_length=1,
+        max_length=2,
+        description=(
+            "1-2 suggested focuses for next week, grounded in the above, not generic advice."
+        ),
+    )
+
+
 def openai_strict_schema(model: type[BaseModel]) -> dict[str, Any]:
     """Adapt a Pydantic JSON schema for OpenAI strict structured outputs."""
 

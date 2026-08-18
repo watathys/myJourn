@@ -141,3 +141,28 @@ export function SevenDaysWinsIllustration({ className = 'card-illustration' }: {
     </div>
   )
 }
+
+export function WeeklyReflectionIllustration({ className = 'card-illustration' }: { className?: string }) {
+  return (
+    <div className={className} aria-hidden="true">
+      <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="forest-bg-reflect" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#305646" />
+            <stop offset="1" stopColor="#234235" />
+          </linearGradient>
+        </defs>
+        <rect width="48" height="48" rx="13" fill="url(#forest-bg-reflect)" />
+
+        {/* Open Book / Digest graphic */}
+        <path
+          d="M12 16C12 16 17 14.5 24 17.5C31 14.5 36 16 36 16V34C36 34 31 32.5 24 35.5C17 32.5 12 34 12 34V16Z"
+          fill="#FFFFFF"
+        />
+        <path d="M24 17.5V35.5" stroke="#305646" strokeWidth="2" strokeLinecap="round" />
+        {/* Golden Sparkle */}
+        <path d="M24 8L25.5 12.5L30 14L25.5 15.5L24 20L22.5 15.5L18 14L22.5 12.5L24 8Z" fill="#FBBF24" />
+      </svg>
+    </div>
+  )
+}

@@ -71,6 +71,7 @@ from app.services.spelling import (
     learn_spelling_corrections,
     save_spelling_correction,
 )
+from app.services.weekly_reflection import WeeklyReflectionService
 
 logger = logging.getLogger(__name__)
 
@@ -729,6 +730,7 @@ def start_weekly_planning(
     payload: StartWeeklyPlanningRequest,
     current_user_id: CurrentUserId,
     session: DbSession,
+    ai: AIClient,
 ) -> WeeklyPlanningSession:
     existing = session.scalar(
         select(WeeklyPlanningSession).where(
@@ -741,14 +743,51 @@ def start_weekly_planning(
             existing.completed_at = None
             session.commit()
             session.refresh(existing)
+        if existing.reflection_data is None:
+            try:
+                existing = WeeklyReflectionService(session=session, ai=ai).generate(
+                    user_id=current_user_id,
+                    week_start_date=payload.week_start_date,
+                )
+            except Exception as exc:
+                logger.warning("Could not auto-generate reflection on start: %s", exc)
         return existing
-    weekly_session = WeeklyPlanningSession(
-        user_id=current_user_id, week_start_date=payload.week_start_date
-    )
-    session.add(weekly_session)
-    session.commit()
-    session.refresh(weekly_session)
-    return weekly_session
+
+    try:
+        return WeeklyReflectionService(session=session, ai=ai).generate(
+            user_id=current_user_id,
+            week_start_date=payload.week_start_date,
+        )
+    except Exception as exc:
+        logger.warning("Could not auto-generate reflection on create session: %s", exc)
+        weekly_session = WeeklyPlanningSession(
+            user_id=current_user_id, week_start_date=payload.week_start_date
+        )
+        session.add(weekly_session)
+        session.commit()
+        session.refresh(weekly_session)
+        return weekly_session
+
+
+@router.post(
+    "/users/{user_id}/weekly-planning/sessions/{week_start_date}/reflection",
+    response_model=WeeklyPlanningSessionResponse,
+)
+def generate_weekly_reflection_route(
+    user_id: str,
+    week_start_date: date,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+    ai: AIClient,
+) -> WeeklyPlanningSession:
+    try:
+        return WeeklyReflectionService(session=session, ai=ai).generate(
+            user_id=current_user_id,
+            week_start_date=week_start_date,
+        )
+    except Exception as exc:
+        logger.warning("Weekly reflection generation error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate weekly reflection.") from exc
 
 
 @router.post(
