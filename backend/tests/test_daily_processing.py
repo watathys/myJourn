@@ -962,3 +962,61 @@ def test_verbatim_mode_preserves_raw_text_and_skips_alignment_summary(session: S
     assert "exact words" in ai.system_prompt
     assert result.journal_entry.formatted_narrative == original_wording
     assert result.journal_entry.alignment_summary == ""
+
+
+def test_includes_todays_plan_tasks_in_system_prompt(session: Session) -> None:
+    from app.models import DailyPlan
+
+    user = User()
+    session.add(user)
+    session.flush()
+    planned = OpenLoopAndGoal(
+        user_id=user.id,
+        goal_text="Finish chapter 3",
+        status=GoalStatus.PENDING,
+        kind=GoalKind.TASK,
+    )
+    backlog = OpenLoopAndGoal(
+        user_id=user.id,
+        goal_text="Organize the garage",
+        status=GoalStatus.PENDING,
+        kind=GoalKind.TASK,
+    )
+    session.add_all([planned, backlog])
+    session.flush()
+    session.add(
+        DailyPlan(
+            user_id=user.id,
+            date=date(2026, 8, 17),
+            selected_task_ids=[planned.id],
+            morning_completed_at=datetime(2026, 8, 17, 8, 0, tzinfo=timezone.utc),
+        )
+    )
+    session.commit()
+
+    ai = FakeAI(
+        DailyAIResult(
+            praise_message=None,
+            formatted_narrative="I made progress on chapter 3.",
+            alignment_summary="What I'm Working On",
+            context_summary="Worked on chapter 3.",
+            completed_goal_ids=[planned.id],
+            new_goals=[],
+            follow_up_questions=[
+                generated("What blocked chapter 3?", QuestionDimension.MENTAL),
+                generated("Who helped you focus?", QuestionDimension.SOCIAL),
+            ],
+            answered_follow_up_question_ids=[],
+        )
+    )
+
+    DailyProcessingService(session=session, ai=ai).process(
+        user_id=user.id,
+        entry_date=date(2026, 8, 17),
+        raw_transcript="Finished chapter 3 today.",
+    )
+
+    assert "Tasks the user picked this morning for today's focus:" in ai.system_prompt
+    assert f"[{planned.id}] Finish chapter 3" in ai.system_prompt
+    assert f"[{backlog.id}] Organize the garage" in ai.system_prompt
+

@@ -57,6 +57,13 @@ export type LifeInsight = {
   created_at: string
 }
 
+export type SavedPercyAdvice = {
+  id: string
+  advice_text: string
+  context_question: string | null
+  created_at: string
+}
+
 export type SpellingCorrection = {
   id: string
   incorrect_word: string
@@ -82,6 +89,14 @@ export type WeeklyPlanningSession = {
   reflection_start_date?: string | null
   reflection_end_date?: string | null
   reflection_generated_at?: string | null
+}
+
+export type DailyPlan = {
+  id: string
+  date: string
+  selected_task_ids: string[]
+  morning_completed_at: string | null
+  created_at: string
 }
 
 export type GoogleStatus = {
@@ -149,7 +164,7 @@ export async function processEntry(
   rawTranscript: string,
   isImport = false,
   appendToEntryId?: string,
-  verbatim = false,
+  verbatim = true,
 ): Promise<JournalEntry> {
   const result = await request<
     Omit<JournalEntry, 'id' | 'goals'> & {
@@ -254,6 +269,35 @@ export function reorderTasks(userId: string, orderedIds: string[]): Promise<Task
   return request(`/users/${userId}/tasks/reorder`, {
     method: 'PATCH',
     body: JSON.stringify({ user_id: userId, ordered_ids: orderedIds }),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Daily plans (morning bookend)
+// ---------------------------------------------------------------------------
+
+export async function getDailyPlan(userId: string, planDate: string): Promise<DailyPlan | null> {
+  try {
+    return await request(`/users/${userId}/daily-plans/${planDate}`)
+  } catch (error) {
+    if ((error as Error & { status?: number }).status === 404) return null
+    throw error
+  }
+}
+
+export function saveDailyPlan(
+  userId: string,
+  planDate: string,
+  selectedTaskIds: string[],
+  completeMorning = true,
+): Promise<DailyPlan> {
+  return request(`/users/${userId}/daily-plans/${planDate}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      user_id: userId,
+      selected_task_ids: selectedTaskIds,
+      complete_morning: completeMorning,
+    }),
   })
 }
 
@@ -436,6 +480,31 @@ export function markLifeInsightRead(userId: string, insightId: string): Promise<
 export function dismissLifeInsight(userId: string, insightId: string): Promise<LifeInsight> {
   return request(`/life-insights/${insightId}/dismiss`, {
     method: 'PATCH',
+    body: JSON.stringify({ user_id: userId }),
+  })
+}
+
+export function getSavedPercyAdvice(userId: string): Promise<SavedPercyAdvice[]> {
+  return request(`/users/${userId}/saved-percy-advice`)
+}
+
+export function createSavedPercyAdvice(
+  userId: string,
+  adviceText: string,
+  contextQuestion?: string,
+): Promise<SavedPercyAdvice> {
+  return request(`/users/${userId}/saved-percy-advice`, {
+    method: 'POST',
+    body: JSON.stringify({
+      advice_text: adviceText,
+      context_question: contextQuestion ?? null,
+    }),
+  })
+}
+
+export function deleteSavedPercyAdvice(userId: string, adviceId: string): Promise<void> {
+  return request(`/saved-percy-advice/${adviceId}`, {
+    method: 'DELETE',
     body: JSON.stringify({ user_id: userId }),
   })
 }

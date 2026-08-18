@@ -16,6 +16,7 @@ from app.api.dependencies import get_current_user_id, get_journal_ai
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import (
+    DailyPlan,
     GoalKind,
     GoalStatus,
     JournalEntry,
@@ -23,6 +24,7 @@ from app.models import (
     MissionStatement,
     OpenLoopAndGoal,
     PercyReminder,
+    SavedPercyAdvice,
     SpellingCorrection,
     User,
     WeeklyPlanningSession,
@@ -32,8 +34,10 @@ from app.schemas import (
     AcknowledgeSnoozeRequest,
     CreateGoalRequest,
     CreatePercyReminderRequest,
+    CreateSavedPercyAdviceRequest,
     CreateSpellingCorrectionRequest,
     CreateTaskRequest,
+    DailyPlanResponse,
     GoalResponse,
     GoogleAuthorizeResponse,
     GoogleStatusResponse,
@@ -50,12 +54,14 @@ from app.schemas import (
     ProcessJournalResponse,
     ReorderGoalsRequest,
     ReorderTasksRequest,
+    SavedPercyAdviceResponse,
     SpellingCorrectionResponse,
     StartWeeklyPlanningRequest,
     TaskResponse,
     UpdateGoalRequest,
     UpdateJournalEntryRequest,
     UpdateTaskRequest,
+    UpsertDailyPlanRequest,
     UserResponse,
     UserScopedRequest,
     WeeklyPlanningSessionResponse,
@@ -501,6 +507,89 @@ def reorder_tasks(
             by_id[task_id].sort_order = index + 1
     session.commit()
     return _list_tasks(session, current_user_id)
+
+
+# ---------------------------------------------------------------------------
+# Daily plans (morning bookend)
+# ---------------------------------------------------------------------------
+
+
+def _get_daily_plan(
+    session: Session, user_id: str, plan_date: date
+) -> DailyPlan | None:
+    return session.scalar(
+        select(DailyPlan).where(
+            DailyPlan.user_id == user_id,
+            DailyPlan.date == plan_date,
+        )
+    )
+
+
+@router.get(
+    "/users/{user_id}/daily-plans/{plan_date}",
+    response_model=DailyPlanResponse,
+)
+def get_daily_plan(
+    user_id: str,
+    plan_date: date,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> DailyPlan:
+    plan = _get_daily_plan(session, current_user_id, plan_date)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Daily plan not found")
+    return plan
+
+
+@router.put(
+    "/users/{user_id}/daily-plans/{plan_date}",
+    response_model=DailyPlanResponse,
+)
+def upsert_daily_plan(
+    user_id: str,
+    plan_date: date,
+    payload: UpsertDailyPlanRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> DailyPlan:
+    if session.get(User, current_user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    selected_ids = list(dict.fromkeys(payload.selected_task_ids))
+    if selected_ids:
+        owned = session.scalars(
+            select(OpenLoopAndGoal.id).where(
+                OpenLoopAndGoal.user_id == current_user_id,
+                OpenLoopAndGoal.kind == GoalKind.TASK,
+                OpenLoopAndGoal.status == GoalStatus.PENDING,
+                OpenLoopAndGoal.id.in_(selected_ids),
+            )
+        )
+        owned_ids = set(owned)
+        invalid = [task_id for task_id in selected_ids if task_id not in owned_ids]
+        if invalid:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid or non-pending task IDs: {', '.join(invalid)}",
+            )
+
+    plan = _get_daily_plan(session, current_user_id, plan_date)
+    if plan is None:
+        plan = DailyPlan(
+            user_id=current_user_id,
+            date=plan_date,
+            selected_task_ids=selected_ids,
+        )
+        session.add(plan)
+    else:
+        plan.selected_task_ids = selected_ids
+
+    if payload.complete_morning and plan.morning_completed_at is None:
+        plan.morning_completed_at = datetime.now(timezone.utc)
+
+    session.commit()
+    session.refresh(plan)
+    return plan
 
 
 # ---------------------------------------------------------------------------
@@ -1067,6 +1156,73 @@ def dismiss_life_insight(
     session.commit()
     session.refresh(insight)
     return insight
+
+
+# ---------------------------------------------------------------------------
+# Saved Percy advice
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/users/{user_id}/saved-percy-advice",
+    response_model=list[SavedPercyAdviceResponse],
+)
+def list_saved_percy_advice(
+    user_id: str,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> list[SavedPercyAdvice]:
+    return list(
+        session.scalars(
+            select(SavedPercyAdvice)
+            .where(SavedPercyAdvice.user_id == current_user_id)
+            .order_by(SavedPercyAdvice.created_at.desc())
+        )
+    )
+
+
+@router.post(
+    "/users/{user_id}/saved-percy-advice",
+    response_model=SavedPercyAdviceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_saved_percy_advice(
+    user_id: str,
+    payload: CreateSavedPercyAdviceRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> SavedPercyAdvice:
+    clean = payload.advice_text.strip()
+    if not clean:
+        raise HTTPException(status_code=422, detail="advice_text must not be empty")
+    context = payload.context_question.strip() if payload.context_question else None
+    advice = SavedPercyAdvice(
+        user_id=current_user_id,
+        advice_text=clean,
+        context_question=context,
+    )
+    session.add(advice)
+    session.commit()
+    session.refresh(advice)
+    return advice
+
+
+@router.delete(
+    "/saved-percy-advice/{advice_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_saved_percy_advice(
+    advice_id: str,
+    payload: UserScopedRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> Response:
+    advice = session.get(SavedPercyAdvice, advice_id)
+    if advice is None or advice.user_id != current_user_id:
+        raise HTTPException(status_code=404, detail="Saved advice not found")
+    session.delete(advice)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/users/{user_id}/percy/chat", response_model=PercyChatResponse)

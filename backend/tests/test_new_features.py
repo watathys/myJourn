@@ -246,6 +246,40 @@ def test_percy_reminders_crud(client: TestClient, session: Session) -> None:
     assert len(resp_get_after.json()) == 0
 
 
+def test_saved_percy_advice_crud(client: TestClient, session: Session) -> None:
+    user = User()
+    session.add(user)
+    session.commit()
+
+    resp_create = client.post(
+        f"/api/users/{user.id}/saved-percy-advice",
+        json={
+            "advice_text": "Your best work happens when you protect morning focus time.",
+            "context_question": "When am I most productive?",
+        },
+    )
+    assert resp_create.status_code == 201
+    advice = resp_create.json()
+    assert advice["advice_text"] == "Your best work happens when you protect morning focus time."
+    assert advice["context_question"] == "When am I most productive?"
+
+    resp_get = client.get(f"/api/users/{user.id}/saved-percy-advice")
+    assert resp_get.status_code == 200
+    saved = resp_get.json()
+    assert len(saved) == 1
+    assert saved[0]["id"] == advice["id"]
+
+    resp_del = client.request(
+        "DELETE",
+        f"/api/saved-percy-advice/{advice['id']}",
+        json={"user_id": str(user.id)},
+    )
+    assert resp_del.status_code == 204
+
+    resp_get_after = client.get(f"/api/users/{user.id}/saved-percy-advice")
+    assert len(resp_get_after.json()) == 0
+
+
 def test_natural_language_schedule_parsing() -> None:
     from datetime import date
 

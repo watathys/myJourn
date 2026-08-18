@@ -51,7 +51,7 @@ class ProcessJournalRequest(BaseModel):
     date: date
     raw_transcript: str = Field(min_length=1)
     is_import: bool = False
-    verbatim: bool = False
+    verbatim: bool = True
     append_to_entry_id: Optional[str] = None
 
 
@@ -236,6 +236,20 @@ class LifeInsightResponse(BaseModel):
     created_at: datetime
 
 
+class CreateSavedPercyAdviceRequest(BaseModel):
+    advice_text: str = Field(min_length=1)
+    context_question: Optional[str] = None
+
+
+class SavedPercyAdviceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    advice_text: str
+    context_question: Optional[str] = None
+    created_at: datetime
+
+
 class JournalEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -259,6 +273,22 @@ class JournalEntryResponse(BaseModel):
             for goal in goals
             if goal.status != GoalStatus.ABANDONED and goal.kind == GoalKind.TASK
         ]
+
+
+class DailyPlanResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    date: date
+    selected_task_ids: list[str]
+    morning_completed_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class UpsertDailyPlanRequest(BaseModel):
+    user_id: str
+    selected_task_ids: list[str] = Field(default_factory=list)
+    complete_morning: bool = True
 
 
 class ProcessJournalResponse(BaseModel):

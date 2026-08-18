@@ -22,6 +22,7 @@ from app.ai.prompts import (
 from app.ai.schemas import GeneratedFollowUpQuestion
 from app.config import Settings, get_settings
 from app.models import (
+    DailyPlan,
     FollowUpQuestion,
     GoalKind,
     GoalStatus,
@@ -94,7 +95,7 @@ class DailyProcessingService:
         entry_date: date,
         raw_transcript: str,
         is_import: bool = False,
-        verbatim: bool = False,
+        verbatim: bool = True,
         append_to_entry_id: Optional[str] = None,
     ) -> DailyProcessingResult:
         """Process and atomically save a dump without altering its raw text."""
@@ -126,6 +127,10 @@ class DailyProcessingService:
         )
         pending_goals = self._recent_pending_goals(user_id, entry_date)
         prompt_goals = [PromptGoal(id=goal.id, text=goal.goal_text) for goal in pending_goals]
+        todays_plan_goals = self._todays_plan_goals(user_id, entry_date, pending_goals)
+        prompt_todays_plan = [
+            PromptGoal(id=goal.id, text=goal.goal_text) for goal in todays_plan_goals
+        ]
         prompt_summaries = [
             PromptSummary(entry_date=summary_date.isoformat(), text=summary)
             for summary_date, summary in self._recent_summaries(user_id, entry_date)
@@ -168,6 +173,7 @@ class DailyProcessingService:
                 is_import=is_import,
                 verbatim=verbatim,
                 relevant_past_summaries=relevant_past_summaries,
+                todays_plan_goals=prompt_todays_plan,
             ),
             user_prompt=build_user_prompt(raw_transcript),
         )
@@ -478,6 +484,30 @@ class DailyProcessingService:
         )
         combined = {goal.id: goal for goal in [*linked_goals, *manually_set_goals]}
         return sorted(combined.values(), key=lambda goal: goal.created_at)
+
+    def _todays_plan_goals(
+        self,
+        user_id: str,
+        entry_date: date,
+        pending_goals: list[OpenLoopAndGoal],
+    ) -> list[OpenLoopAndGoal]:
+        """Tasks the user picked this morning for today's focus."""
+
+        plan = self._session.scalar(
+            select(DailyPlan).where(
+                DailyPlan.user_id == user_id,
+                DailyPlan.date == entry_date,
+            )
+        )
+        if plan is None or not plan.selected_task_ids:
+            return []
+
+        pending_by_id = {goal.id: goal for goal in pending_goals}
+        return [
+            pending_by_id[task_id]
+            for task_id in plan.selected_task_ids
+            if task_id in pending_by_id
+        ]
 
     def _recent_summaries(
         self, user_id: str, entry_date: date

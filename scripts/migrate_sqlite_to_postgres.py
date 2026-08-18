@@ -26,6 +26,7 @@ from app.models import (
     MissionStatement,
     OpenLoopAndGoal,
     PercyReminder,
+    SavedPercyAdvice,
     SpellingCorrection,
     User,
     WeeklyPlanningSession,
@@ -253,6 +254,7 @@ def main() -> None:
             ("open_loops_and_goals", OpenLoopAndGoal),
             ("percy_reminders", PercyReminder),
             ("life_insights", LifeInsight),
+            ("saved_percy_advice", SavedPercyAdvice),
             ("weekly_planning_sessions", WeeklyPlanningSession),
             ("spelling_corrections", SpellingCorrection),
         ]

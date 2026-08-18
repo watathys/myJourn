@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import {
-  Archive, AlarmClock, Bell, BookOpen, CalendarDays, CalendarRange, Check, ChevronDown,
+  Archive, AlarmClock, Bell, BookOpen, Bookmark, CalendarDays, CalendarRange, Check, ChevronDown,
   ChevronRight, ChevronUp, CircleCheck, Compass, GripVertical, Lightbulb, Link2,
-  LockKeyhole, LogOut, Menu, MessageCircle, Mic, PanelLeftClose, Pencil, PlayCircle, Plus, RotateCcw,
-  Search, Send, Sparkles, SpellCheck, Trash2, Unlink, Upload, User as UserIcon, X,
+  LockKeyhole, LogOut, Menu, MessageCircle, Mic, Moon, PanelLeftClose, Pencil, PlayCircle, Plus, RotateCcw,
+  Search, Send, Sparkles, SpellCheck, Sunrise, Trash2, Unlink, Upload, User as UserIcon, X,
 } from 'lucide-react'
 import {
   WorkingOnIllustration,
@@ -14,16 +14,16 @@ import {
   WeeklyReflectionIllustration,
 } from './Illustrations'
 import {
-  acknowledgeTaskSnooze, chatWithPercy, createGoalWithPercy, createPercyReminder,
+  acknowledgeTaskSnooze, chatWithPercy, createGoalWithPercy, createPercyReminder, createSavedPercyAdvice,
   createSpellingCorrection, createTask, createWeeklyGoal, deleteJournalEntry,
-  deletePercyReminder, deleteSpellingCorrection, disconnectGoogle, dismissLifeInsight,
-  dismissPercyReminder, finishWeeklyPlanning, generateWeeklyReflection, getEntries,
-  getGoogleAuthorizeUrl, getGoogleStatus, getLifeInsights, getNorthStar, getPercyReminders,
-  getSpellingCorrections, getTasks, getWeeklyGoals, getWeeklyPlanningSession,
-  markLifeInsightRead, processEntry, reorderGoals, reorderTasks, saveNorthStar,
-  startWeeklyPlanning, updateGoal, updateJournalEntry, updateTask, type Goal,
+  deletePercyReminder, deleteSavedPercyAdvice, deleteSpellingCorrection, disconnectGoogle, dismissLifeInsight,
+  dismissPercyReminder, finishWeeklyPlanning, generateWeeklyReflection, getDailyPlan,
+  getEntries, getGoogleAuthorizeUrl, getGoogleStatus, getLifeInsights, getNorthStar, getPercyReminders,
+  getSavedPercyAdvice, getSpellingCorrections, getTasks, getWeeklyGoals, getWeeklyPlanningSession,
+  markLifeInsightRead, processEntry, reorderGoals, reorderTasks, saveDailyPlan, saveNorthStar,
+  startWeeklyPlanning, updateGoal, updateJournalEntry, updateTask, type DailyPlan, type Goal,
   type GoalUpdate, type GoogleStatus, type JournalEntry, type LifeInsight,
-  type PercyChatMessage, type PercyReminder, type SpellingCorrection, type Task,
+  type PercyChatMessage, type PercyReminder, type SavedPercyAdvice, type SpellingCorrection, type Task,
   type WeeklyPlanningSession,
 } from './api'
 import { supabase } from './supabase'
@@ -385,7 +385,7 @@ function App() {
     ),
   )
   const [saveVerbatim, setSaveVerbatim] = useState(
-    () => localStorage.getItem(VERBATIM_KEY) === '1',
+    () => localStorage.getItem(VERBATIM_KEY) !== '0',
   )
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -433,6 +433,9 @@ function App() {
   const [chatMessages, setChatMessages] = useState<PercyChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
+  const [savedPercyAdvice, setSavedPercyAdvice] = useState<SavedPercyAdvice[]>([])
+  const [savingAdviceIndex, setSavingAdviceIndex] = useState<number | null>(null)
+  const [deletingAdviceId, setDeletingAdviceId] = useState<string | null>(null)
   const [activeChatInsight, setActiveChatInsight] = useState<{ id?: string; text: string } | null>(null)
   const [updatingGoalId, setUpdatingGoalId] = useState<string | null>(null)
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null)
@@ -465,6 +468,12 @@ function App() {
   const [addingNextWeekReminder, setAddingNextWeekReminder] = useState(false)
   const [finishingWeeklyPlanning, setFinishingWeeklyPlanning] = useState(false)
 
+  const [dailyPlan, setDailyPlan] = useState<DailyPlan | null>(null)
+  const [morningSelectedIds, setMorningSelectedIds] = useState<string[]>([])
+  const [savingMorningPlan, setSavingMorningPlan] = useState(false)
+  const [eveningMode, setEveningMode] = useState(false)
+  const [showAllTasks, setShowAllTasks] = useState(false)
+
   const [sessionUser, setSessionUser] = useState<{ id: string; email?: string } | null>(null)
   const [authChecking, setAuthChecking] = useState(true)
   const lastLoadedUserIdRef = useRef<string | null>(null)
@@ -474,9 +483,10 @@ function App() {
     lastLoadedUserIdRef.current = id
     setLoading(true)
     try {
-      const [history, mission, insights, taskList, goals, corrections, reminders] = await Promise.all([
+      const [history, mission, insights, taskList, goals, corrections, reminders, plan, savedAdvice] = await Promise.all([
         getEntries(id), getNorthStar(id), getLifeInsights(id), getTasks(id),
         getWeeklyGoals(id, weekStartOf()), getSpellingCorrections(id), getPercyReminders(id),
+        getDailyPlan(id, today()), getSavedPercyAdvice(id),
       ])
       setUserId(id)
       setEntries(history)
@@ -487,6 +497,9 @@ function App() {
       setWeeklyGoals(goals)
       setSpellingCorrections(corrections)
       setPercyReminders(reminders)
+      setDailyPlan(plan)
+      setSavedPercyAdvice(savedAdvice)
+      setMorningSelectedIds(plan?.selected_task_ids ?? [])
       getGoogleStatus(id).then(setGoogleStatus).catch(() => {})
     } catch (reason: unknown) {
       setError((reason as Error).message)
@@ -656,6 +669,82 @@ function App() {
     return activeEntry.date >= addDaysToIsoDate(today(), -1)
   }, [activeEntry])
 
+  const todayEntry = useMemo(
+    () => entries.find((entry) => entry.date === today()) ?? null,
+    [entries],
+  )
+
+  const plannedTasks = useMemo(() => {
+    if (!dailyPlan?.selected_task_ids.length) return []
+    const byId = new Map(tasks.map((task) => [task.id, task]))
+    return dailyPlan.selected_task_ids
+      .map((id) => byId.get(id))
+      .filter((task): task is Task => task !== undefined && task.status === 'pending')
+  }, [dailyPlan, tasks])
+
+  const bookendScreen = useMemo((): 'morning' | 'day' | 'evening' | null => {
+    if (view !== 'journal') return null
+    if (activeEntry) return null
+    if (appendTarget) return null
+    if (entryDate !== today()) return null
+    if (todayEntry) return null
+    if (!dailyPlan?.morning_completed_at) return 'morning'
+    if (eveningMode) return 'evening'
+    return 'day'
+  }, [view, activeEntry, appendTarget, entryDate, todayEntry, dailyPlan, eveningMode])
+
+  function toggleMorningTask(taskId: string) {
+    setMorningSelectedIds((current) =>
+      current.includes(taskId)
+        ? current.filter((id) => id !== taskId)
+        : [...current, taskId],
+    )
+  }
+
+  async function startMorningDay() {
+    if (!userId || savingMorningPlan) return
+    setSavingMorningPlan(true)
+    setError('')
+    try {
+      const plan = await saveDailyPlan(userId, today(), morningSelectedIds, true)
+      setDailyPlan(plan)
+      setEveningMode(false)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to save your plan for today.')
+    } finally {
+      setSavingMorningPlan(false)
+    }
+  }
+
+  async function skipMorningPlanning() {
+    if (!userId || savingMorningPlan) return
+    setSavingMorningPlan(true)
+    setError('')
+    try {
+      const plan = await saveDailyPlan(userId, today(), [], true)
+      setDailyPlan(plan)
+      setEveningMode(false)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to skip morning planning.')
+    } finally {
+      setSavingMorningPlan(false)
+    }
+  }
+
+  function beginEvening() {
+    setEveningMode(true)
+    setDraft('')
+    requestAnimationFrame(() => editorRef.current?.focus())
+  }
+
+  useEffect(() => {
+    if (view !== 'journal' || activeEntry || appendTarget || loading) return
+    if (todayEntry && entryDate === today()) {
+      setActiveEntry(todayEntry)
+      setNarrativeDraft(todayEntry.formatted_narrative)
+    }
+  }, [view, activeEntry, appendTarget, loading, todayEntry, entryDate])
+
   function toggleSidebar() {
     setSidebarOpen((current) => !current)
   }
@@ -669,6 +758,7 @@ function App() {
     setDraft(prefill)
     setEntryDate(today())
     setAppendTarget(null)
+    setEveningMode(false)
     setError('')
     if (isMobileViewport()) setSidebarOpen(false)
     requestAnimationFrame(() => {
@@ -908,6 +998,7 @@ function App() {
       setEditingNarrative(false)
       setDraft('')
       setAppendTarget(null)
+      setEveningMode(false)
       refreshBackgroundState()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to create your entry.')
@@ -999,6 +1090,52 @@ function App() {
       setLifeInsights((current) => current.filter((insight) => insight.id !== insightId))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to dismiss that insight.')
+    }
+  }
+
+  function findContextQuestion(messageIndex: number): string | undefined {
+    for (let i = messageIndex - 1; i >= 0; i -= 1) {
+      if (chatMessages[i].role === 'user') return chatMessages[i].content
+    }
+    return undefined
+  }
+
+  function isAdviceSaved(adviceText: string): boolean {
+    return savedPercyAdvice.some((item) => item.advice_text === adviceText)
+  }
+
+  async function savePercyAdvice(messageIndex: number) {
+    if (!userId || savingAdviceIndex !== null) return
+    const msg = chatMessages[messageIndex]
+    if (!msg || msg.role !== 'assistant' || isAdviceSaved(msg.content)) return
+
+    setSavingAdviceIndex(messageIndex)
+    setError('')
+    try {
+      const saved = await createSavedPercyAdvice(
+        userId,
+        msg.content,
+        findContextQuestion(messageIndex),
+      )
+      setSavedPercyAdvice((current) => [saved, ...current])
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to save that advice.')
+    } finally {
+      setSavingAdviceIndex(null)
+    }
+  }
+
+  async function removeSavedAdvice(adviceId: string) {
+    if (!userId) return
+    setDeletingAdviceId(adviceId)
+    setError('')
+    try {
+      await deleteSavedPercyAdvice(userId, adviceId)
+      setSavedPercyAdvice((current) => current.filter((item) => item.id !== adviceId))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to remove saved advice.')
+    } finally {
+      setDeletingAdviceId(null)
     }
   }
 
@@ -1712,6 +1849,230 @@ function App() {
     )
   }
 
+  function renderMorningTaskPicker(task: Task) {
+    const selected = morningSelectedIds.includes(task.id)
+    return (
+      <li key={task.id} className={selected ? 'bookend-task selected' : 'bookend-task'}>
+        <button
+          type="button"
+          className="bookend-task-toggle"
+          onClick={() => toggleMorningTask(task.id)}
+          aria-pressed={selected}
+        >
+          <span className="bookend-checkbox">{selected && <Check />}</span>
+          <span className="bookend-task-text">{task.goal_text}</span>
+        </button>
+      </li>
+    )
+  }
+
+  function renderMorningBookend() {
+    return (
+      <section className="bookend-view morning-bookend">
+        <div className="bookend-heading">
+          <div className="eyebrow"><Sunrise /> Morning bookend</div>
+          <h1>What are you doing today?</h1>
+          <p>
+            Pick a focused list from everything you&apos;re working on. A smaller plan makes it
+            easier to actually do the things.
+          </p>
+        </div>
+
+        <div className="bookend-card">
+          <div className="bookend-card-head">
+            <WorkingOnIllustration />
+            <div>
+              <h2>Today&apos;s plan</h2>
+              <p className="bookend-card-sub">
+                {morningSelectedIds.length
+                  ? `${morningSelectedIds.length} selected`
+                  : 'Select what you’ll focus on today'}
+              </p>
+            </div>
+          </div>
+
+          {visibleTasks.length > 0 ? (
+            <ul className="bookend-task-list">{visibleTasks.map(renderMorningTaskPicker)}</ul>
+          ) : (
+            <p className="alignment">
+              No active tasks yet. Add one below, or skip planning and come back tonight.
+            </p>
+          )}
+
+          {renderTaskInputRow()}
+          {renderSnoozedTasks()}
+
+          <div className="bookend-actions">
+            <button
+              className="primary-button large"
+              disabled={savingMorningPlan || !userId}
+              onClick={() => { void startMorningDay() }}
+            >
+              {savingMorningPlan ? <span className="button-spinner" /> : <Sunrise />}
+              Start my day
+            </button>
+            <button
+              className="ghost-button"
+              disabled={savingMorningPlan}
+              onClick={() => { void skipMorningPlanning() }}
+            >
+              Skip for now
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="bookend-manage-link"
+          onClick={() => setShowAllTasks((open) => !open)}
+        >
+          {showAllTasks ? 'Hide full working list' : 'Manage your full working list'}
+          {showAllTasks ? <ChevronUp /> : <ChevronDown />}
+        </button>
+        {showAllTasks && renderWorkingOnCard('Your full backlog')}
+      </section>
+    )
+  }
+
+  function renderPlannedTaskCheckoff(task: Task) {
+    const isCompleted = task.status === 'completed'
+    const targetCount = task.target_count ?? 1
+    const currentCount = task.current_count ?? (isCompleted ? targetCount : 0)
+
+    return (
+      <li key={task.id} className={isCompleted ? 'bookend-task done' : 'bookend-task'}>
+        <GoalCheckboxes
+          targetCount={targetCount}
+          currentCount={currentCount}
+          onChange={(newCount) => { void patchTask(task, { current_count: newCount }) }}
+        />
+        <span className="bookend-task-text">{task.goal_text}</span>
+      </li>
+    )
+  }
+
+  function renderDayBookend() {
+    return (
+      <section className="bookend-view day-bookend">
+        <div className="bookend-heading">
+          <div className="eyebrow"><CalendarDays /> Your day</div>
+          <h1>Focus on what you picked</h1>
+          <p>You planned these for today. Come back tonight to log what you did and reflect.</p>
+        </div>
+
+        <div className="bookend-card">
+          <div className="bookend-card-head">
+            <WorkingOnIllustration />
+            <div>
+              <h2>Today&apos;s plan</h2>
+              <p className="bookend-card-sub">{formatDate(today(), true)}</p>
+            </div>
+          </div>
+
+          {plannedTasks.length > 0 ? (
+            <ul className="bookend-task-list checkoff">
+              {plannedTasks.map(renderPlannedTaskCheckoff)}
+            </ul>
+          ) : (
+            <p className="alignment">You skipped picking tasks this morning. You can still close your day tonight.</p>
+          )}
+
+          <div className="bookend-actions">
+            <button className="primary-button large" onClick={beginEvening}>
+              <Moon /> Close my day
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="bookend-manage-link"
+          onClick={() => setShowAllTasks((open) => !open)}
+        >
+          {showAllTasks ? 'Hide full working list' : 'Manage your full working list'}
+          {showAllTasks ? <ChevronUp /> : <ChevronDown />}
+        </button>
+        {showAllTasks && renderWorkingOnCard('Your full backlog')}
+      </section>
+    )
+  }
+
+  function renderEveningBookend() {
+    const eveningTasks = plannedTasks.length > 0 ? plannedTasks : visibleTasks
+
+    return (
+      <section className="bookend-view evening-bookend composer">
+        <div className="bookend-heading composer-heading">
+          <div className="eyebrow"><Moon /> Evening bookend</div>
+          <h1>How did today go?</h1>
+          <p>Check off what you got done, then journal about your day.</p>
+        </div>
+
+        <div className="bookend-card">
+          <div className="bookend-card-head">
+            <WorkingOnIllustration />
+            <div>
+              <h2>{plannedTasks.length > 0 ? 'Today\'s plan' : 'What you worked on'}</h2>
+              <p className="bookend-card-sub">Mark anything you finished</p>
+            </div>
+          </div>
+          {eveningTasks.length > 0 ? (
+            <ul className="bookend-task-list checkoff">
+              {eveningTasks.map(renderPlannedTaskCheckoff)}
+            </ul>
+          ) : (
+            <p className="alignment">No tasks to check off — jump straight into your reflection.</p>
+          )}
+        </div>
+
+        <div className={listening ? 'editor-card listening' : 'editor-card'}>
+          <textarea
+            ref={editorRef}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Today I..."
+            aria-label="Journal entry"
+          />
+          <div className="editor-toolbar">
+            <div className="editor-tools">
+              <button className={listening ? 'voice-button active' : 'voice-button'} onClick={toggleVoice}>
+                <Mic /> {listening ? 'Listening...' : 'Voice dump'}
+              </button>
+            </div>
+            <span className="word-count">{draft.trim() ? draft.trim().split(/\s+/).length : 0} words</span>
+          </div>
+        </div>
+
+        <div className="composer-submit">
+          <div className="composer-submit-meta">
+            <label className="verbatim-toggle">
+              <input
+                type="checkbox"
+                checked={!saveVerbatim}
+                onChange={(event) => setSaveVerbatim(!event.target.checked)}
+              />
+              <span>Use AI rewrite</span>
+            </label>
+            <p>
+              {saveVerbatim ? (
+                <>Your entry will be saved word for word. Tasks in your text can still be picked up.</>
+              ) : (
+                <><Sparkles /> AI will polish your entry and help you reflect.</>
+              )}
+            </p>
+          </div>
+          <button
+            className="primary-button large"
+            disabled={!draft.trim() || !userId}
+            onClick={submitEntry}
+          >
+            {saveVerbatim ? 'Save to my journal' : 'Reflect on my day'} <ChevronRight />
+          </button>
+        </div>
+      </section>
+    )
+  }
+
   function renderWeeklyGoalsCard() {
     return (
       <section className="working-card composer-working-card accordion-card">
@@ -1985,9 +2346,27 @@ function App() {
           <div className="percy-messages-list">
             {chatMessages.map((msg, index) => (
               <div key={index} className={`percy-message ${msg.role}`}>
-                <div className="message-sender">
-                  {msg.role === 'assistant' ? <Sparkles /> : <UserIcon />}
-                  <span>{msg.role === 'assistant' ? 'Percy' : 'You'}</span>
+                <div className="message-header">
+                  <div className="message-sender">
+                    {msg.role === 'assistant' ? <Sparkles /> : <UserIcon />}
+                    <span>{msg.role === 'assistant' ? 'Percy' : 'You'}</span>
+                  </div>
+                  {msg.role === 'assistant' && (
+                    <button
+                      type="button"
+                      className={`save-advice-btn${isAdviceSaved(msg.content) ? ' saved' : ''}`}
+                      disabled={isAdviceSaved(msg.content) || savingAdviceIndex === index}
+                      onClick={() => void savePercyAdvice(index)}
+                      title={isAdviceSaved(msg.content) ? 'Saved' : 'Save this advice'}
+                    >
+                      {savingAdviceIndex === index ? (
+                        <span className="button-spinner" />
+                      ) : (
+                        <Bookmark fill={isAdviceSaved(msg.content) ? 'currentColor' : 'none'} />
+                      )}
+                      {isAdviceSaved(msg.content) ? 'Saved' : 'Save'}
+                    </button>
+                  )}
                 </div>
                 <p className="message-content">{msg.content}</p>
               </div>
@@ -1998,6 +2377,39 @@ function App() {
                 <div className="typing-dots"><span /><span /><span /></div>
               </div>
             )}
+          </div>
+        )}
+
+        {savedPercyAdvice.length > 0 && (
+          <div className="saved-advice-section">
+            <div className="saved-advice-head">
+              <Bookmark />
+              <h4>Saved Advice</h4>
+              <span className="accordion-badge">{savedPercyAdvice.length}</span>
+            </div>
+            <ul className="saved-advice-list">
+              {savedPercyAdvice.map((item) => (
+                <li key={item.id} className="saved-advice-item">
+                  <div className="saved-advice-content">
+                    {item.context_question && (
+                      <p className="saved-advice-context">You asked: {item.context_question}</p>
+                    )}
+                    <p className="saved-advice-text">{item.advice_text}</p>
+                    <span className="saved-advice-date">{formatDate(item.created_at.slice(0, 10))}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-button saved-advice-delete"
+                    disabled={deletingAdviceId === item.id}
+                    onClick={() => void removeSavedAdvice(item.id)}
+                    aria-label="Remove saved advice"
+                    title="Remove"
+                  >
+                    <Trash2 />
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -2101,11 +2513,11 @@ function App() {
         >
           {sidebarOpen ? <PanelLeftClose /> : <Menu />}
         </button>
-        <button className="wordmark" onClick={() => startNewEntry()} aria-label="MyJourn home">
-          <span className="wordmark-mark"><BookOpen /></span><span>MyJourn</span>
+        <button className="wordmark" onClick={() => startNewEntry()} aria-label="Bookends home">
+          <span className="wordmark-mark"><BookOpen /></span><span>Bookends</span>
         </button>
         <nav aria-label="Primary navigation">
-          <button className={view === 'journal' ? 'nav-link active' : 'nav-link'} onClick={() => setView('journal')}>Journal</button>
+          <button className={view === 'journal' ? 'nav-link active' : 'nav-link'} onClick={() => setView('journal')}>Today</button>
           <button className={view === 'weekly' ? 'nav-link active' : 'nav-link'} onClick={() => setView('weekly')}><CalendarRange /> Weekly Planning</button>
           <button className={view === 'import' ? 'nav-link active' : 'nav-link'} onClick={() => setView('import')}><Upload /> Import</button>
           <button className={view === 'northstar' ? 'nav-link active' : 'nav-link'} onClick={() => setView('northstar')}>
@@ -2119,7 +2531,7 @@ function App() {
 
       <aside className={sidebarOpen ? 'sidebar open' : 'sidebar'}>
         <div className="sidebar-mobile-head"><span>Journal history</span><button className="icon-button" onClick={() => setSidebarOpen(false)} aria-label="Close history"><X /></button></div>
-        <button className="new-entry-button" onClick={() => startNewEntry()}><Plus /> New Daily Entry</button>
+        <button className="new-entry-button" onClick={() => { setEntryDate(today()); startNewEntry() }}><Plus /> Write an entry</button>
         <label className="search-box"><Search /><span className="sr-only">Search entries</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search your journal..." /></label>
 
         <div className="entry-list" ref={entryListRef}>
@@ -2308,7 +2720,9 @@ function App() {
               >
                 <div className="card-head-title">
                   <Lightbulb /> <h2>AI Insights & Percy Chat</h2>
-                  {lifeInsights.length > 0 && <span className="accordion-badge">{lifeInsights.length}</span>}
+                  {(lifeInsights.length > 0 || savedPercyAdvice.length > 0) && (
+                    <span className="accordion-badge">{lifeInsights.length + savedPercyAdvice.length}</span>
+                  )}
                 </div>
                 {insightsOpen ? <ChevronUp /> : <ChevronDown />}
               </button>
@@ -2748,6 +3162,12 @@ function App() {
               </button>
             </div>
           </section>
+        ) : bookendScreen === 'morning' ? (
+          renderMorningBookend()
+        ) : bookendScreen === 'day' ? (
+          renderDayBookend()
+        ) : bookendScreen === 'evening' ? (
+          renderEveningBookend()
         ) : generating ? (
           <section className="generating-view" role="status" aria-live="polite">
             <div className="generation-orbit"><Sparkles /></div>
@@ -2765,7 +3185,7 @@ function App() {
             <div className="entry-heading">
               <div className="entry-heading-row">
                 <div>
-                  <div className="eyebrow"><CalendarDays /> Daily reflection</div>
+                  <div className="eyebrow"><Moon /> Evening reflection</div>
                   {editingDate ? (
                     <div className="date-edit-inline">
                       <input
@@ -2853,9 +3273,9 @@ function App() {
         ) : (
           <section className="composer">
             <div className="composer-heading">
-              <div className="eyebrow"><CalendarDays /> {formatDate(entryDate, true)}</div>
-              <h1>{appendTarget ? 'Keep exploring.' : entries.length ? 'What’s on your mind?' : 'Begin with today.'}</h1>
-              <p>{appendTarget ? 'Your response will be added to the bottom of the same entry.' : entries.length ? 'Write it as it happened. We’ll help shape the reflection.' : 'No setup, no perfect first sentence. Just tell the story of your day.'}</p>
+              <div className="eyebrow"><Moon /> {formatDate(entryDate, true)}</div>
+              <h1>{appendTarget ? 'Keep exploring.' : entries.length ? 'Close out your day' : 'Begin with today.'}</h1>
+              <p>{appendTarget ? 'Your response will be added to the bottom of the same entry.' : entries.length ? 'Write what happened. Your words are saved exactly as you write them.' : 'No setup, no perfect first sentence. Just tell the story of your day.'}</p>
             </div>
             <div className={listening ? 'editor-card listening' : 'editor-card'}>
               <textarea ref={editorRef} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Today felt..." aria-label="Journal entry" />
@@ -2872,16 +3292,16 @@ function App() {
                 <label className="verbatim-toggle">
                   <input
                     type="checkbox"
-                    checked={saveVerbatim}
-                    onChange={(event) => setSaveVerbatim(event.target.checked)}
+                    checked={!saveVerbatim}
+                    onChange={(event) => setSaveVerbatim(!event.target.checked)}
                   />
-                  <span>Save my exact words (no AI rewrite)</span>
+                  <span>Use AI rewrite</span>
                 </label>
                 <p>
                   {saveVerbatim ? (
                     <>Your entry will be saved word for word. Reminders and tasks in your text can still be picked up.</>
                   ) : (
-                    <><Sparkles /> Your words stay yours. AI only helps you reflect.</>
+                    <><Sparkles /> AI will polish your entry and help you reflect.</>
                   )}
                 </p>
               </div>

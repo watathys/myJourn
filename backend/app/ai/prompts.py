@@ -50,8 +50,9 @@ def build_system_prompt(
     recent_question_texts: Optional[list[str]] = None,
     yesterday_unanswered_questions: Optional[list[PromptFollowUpQuestion]] = None,
     is_import: bool = False,
-    verbatim: bool = False,
+    verbatim: bool = True,
     relevant_past_summaries: Optional[list[PromptSummary]] = None,
+    todays_plan_goals: Optional[list[PromptGoal]] = None,
 ) -> str:
     """Build bounded guidance without replaying raw journal history."""
 
@@ -64,6 +65,11 @@ def build_system_prompt(
         "\n".join(f"- [{goal.id}] {goal.text[:500]}" for goal in pending_goals)
         if pending_goals
         else "(none)"
+    )
+    todays_plan = (
+        "\n".join(f"- [{goal.id}] {goal.text[:500]}" for goal in todays_plan_goals)
+        if todays_plan_goals
+        else "(none — user did not pick a morning plan for today)"
     )
     summaries = (
         "\n".join(
@@ -135,6 +141,9 @@ Permanent north star:
 Pending tasks ("What I'm Working On") from the last seven days:
 {goals}
 
+Tasks the user picked this morning for today's focus:
+{todays_plan}
+
 Journal summaries from the previous 14 days:
 {summaries}
 
@@ -159,12 +168,14 @@ Rules:
 1. Preserve facts. Never invent events, emotions, goal completion, or commitments.
 2. If the transcript clearly shows follow-through on a supplied pending task, include that
    task's ID in completed_goal_ids and write warm, specific praise that cites what they did.
-   Otherwise return no praise and no completed IDs. Do not use generic praise.
+   Prioritize completion detection for tasks in today's morning plan when the transcript
+   supports it. Otherwise return no praise and no completed IDs. Do not use generic praise.
 3. Turn the dump into a smooth, Day One-style first-person narrative. Keep the user's own
    phrasing, tone, uncertainty, and rough edges where natural; correct only enough for clarity.
 4. Produce a short section headed exactly "What I'm Working On". Summarize active
    tasks/projects the user is currently working on day-to-day (not their weekly-planning
-   goals), accounting for tasks completed today and new ones found today.
+   goals), accounting for tasks completed today and new ones found today. When the user had
+   a morning plan, lead with how today went against those planned tasks before the broader backlog.
    {mission_reflection_rule}
 5. Extract only genuinely new open loops/tasks stated or strongly committed to by the user —
    ongoing things they're actively working on, not one-off weekly intentions (those belong in

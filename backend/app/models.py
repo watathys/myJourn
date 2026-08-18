@@ -119,7 +119,13 @@ class User(Base):
     weekly_planning_sessions: Mapped[list[WeeklyPlanningSession]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    daily_plans: Mapped[list[DailyPlan]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     spelling_corrections: Mapped[list[SpellingCorrection]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    saved_percy_advice: Mapped[list[SavedPercyAdvice]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -343,6 +349,49 @@ class LifeInsight(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="life_insights")
+
+
+class SavedPercyAdvice(Base):
+    """Advice from Percy chat that the user chose to save for later."""
+
+    __tablename__ = "saved_percy_advice"
+    __table_args__ = (Index("ix_saved_percy_advice_user_created", "user_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    advice_text: Mapped[str] = mapped_column(Text, nullable=False)
+    context_question: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="saved_percy_advice")
+
+
+class DailyPlan(Base):
+    """Morning bookend: tasks the user chose to focus on for a specific day."""
+
+    __tablename__ = "daily_plans"
+    __table_args__ = (
+        UniqueConstraint("user_id", "date", name="uq_daily_plan_user_date"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    selected_task_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    morning_completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="daily_plans")
 
 
 class WeeklyPlanningSession(Base):
