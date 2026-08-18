@@ -41,7 +41,7 @@ from app.services.spelling import apply_spelling_corrections, get_user_spelling_
 
 logger = logging.getLogger(__name__)
 
-INSIGHT_COOLDOWN_DAYS = 7
+INSIGHT_COOLDOWN_DAYS = 2
 
 
 def week_start_of(entry_date: date) -> date:

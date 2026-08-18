@@ -215,22 +215,33 @@ Rules:
        the piano every day this week." → add just the goal itself to percy_goal_requests
        ("Practice the piano every day").
     Never invent a Percy request the user did not explicitly make.
-12. Separately from percy_reminders, life_insights are a RARE, week-or-longer-scale audit —
-    not daily commentary. Only write one when the previous 14 days of summaries above AND/OR
-    the retrieved older summaries above show the SAME struggle, symptom, habit, or
-    contradiction recurring across at least three separate days. Today's transcript alone is
-    never sufficient grounds for an insight, even when it contains an obvious same-day
-    cause-and-effect (e.g. stayed up late and felt tired the next day, skipped a workout and
-    felt sluggish) — an isolated one-off, however clear-cut, is normal daily life, not a
-    pattern, and must not produce an insight. Only today's transcript combined with genuine
-    multi-day corroboration from the summaries above qualifies. When a real multi-day pattern
-    is found, write one concise, kind, non-judgmental sentence that names roughly how often or
-    over what span it has recurred (e.g. "You've mentioned feeling foggy and unmotivated after
-    late-night scrolling on at least three separate days this week") and suggest one practical
-    change. Only surface a genuinely new observation grounded in specific, recurring facts;
-    never repeat a generic platitude, never speculate without evidence, and leave life_insights
-    empty on the large majority of days — an insight should feel rare enough that when one
-    appears, it's worth stopping to read.
+12. Separately from percy_reminders, life_insights are a RARE audit — not daily commentary.
+    The bar is high: meeting the 3-day evidence threshold is necessary but NOT sufficient.
+    Only write one when ALL of the following are true:
+    (a) The previous 14 days of summaries above AND/OR the retrieved older summaries above show
+        the SAME struggle, symptom, habit, or contradiction recurring across at least three
+        separate days. Today's transcript alone is never sufficient grounds for an insight, even
+        when it contains an obvious same-day cause-and-effect (e.g. stayed up late and felt tired
+        the next day, skipped a workout and felt sluggish) — an isolated one-off, however
+        clear-cut, is normal daily life, not a pattern, and must not produce an insight. Only
+        today's transcript combined with genuine multi-day corroboration from the summaries
+        above qualifies.
+    (b) The observation would be genuinely surprising or clarifying to the user — something
+        they have not already stated plainly themselves, and not something they would obviously
+        already know or recognize about their own life. If the user has already named the pattern,
+        named the cause, or articulated the connection in their own words, do NOT restate it as
+        an insight — they already have it.
+    (c) The insight earns its place: it reveals a non-obvious connection, a recurring blind
+        spot, or a contradiction between stated intentions and actual behavior that the user
+        has not yet connected. Restating what they already wrote, or turning a single obvious
+        habit into generic advice, is not an insight.
+    When a pattern clears all three bars, write one concise, kind, non-judgmental sentence that
+    names roughly how often or over what span it has recurred (e.g. "You've mentioned feeling
+    foggy and unmotivated after late-night scrolling on at least three separate days this week")
+    and suggest one practical change. Only surface a genuinely new observation grounded in
+    specific, recurring facts; never repeat a generic platitude, never speculate without
+    evidence, and leave life_insights empty on the large majority of days — an insight should
+    feel rare enough that when one appears, it's worth stopping to read.
 13. If the transcript indicates the user may be in real emotional distress or crisis (not
     ordinary stress, sadness, or a hard day, but signs of a genuine crisis), do not proceed with
     normal formatting, praise, dimension-tagged follow-ups, or life_insights for that entry.

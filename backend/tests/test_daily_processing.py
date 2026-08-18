@@ -513,7 +513,8 @@ def test_prompt_instructs_life_audit_and_diagnostic_follow_ups(session: Session)
         "The primary goal of\n   follow-up questions is to help the user figure out how to "
         "improve their life" in ai.system_prompt
     )
-    assert "life_insights are a RARE, week-or-longer-scale audit" in ai.system_prompt
+    assert "life_insights are a RARE audit" in ai.system_prompt
+    assert "meeting the 3-day evidence threshold is necessary but NOT sufficient" in ai.system_prompt
 
 
 def test_seven_day_policy_simulation_rotates_without_repeats(session: Session) -> None:
@@ -707,7 +708,7 @@ def test_life_insight_cooldown_discards_recent_insights(session: Session) -> Non
     )
     assert res1.life_insights == ("First insight.",)
 
-    # Day 3: 2026-07-22 (2 days later) - Within 7-day cooldown, should be discarded
+    # Day 2: 2026-07-21 (1 day later) - Within 2-day cooldown, should be discarded
     ai2 = FakeAI(
         DailyAIResult(
             praise_message=None,
@@ -727,7 +728,7 @@ def test_life_insight_cooldown_discards_recent_insights(session: Session) -> Non
     service = DailyProcessingService(session=session, ai=ai2)
     res2 = service.process(
         user_id=user.id,
-        entry_date=date(2026, 7, 22),
+        entry_date=date(2026, 7, 21),
         raw_transcript="Journal entry 2",
     )
     assert res2.life_insights == ()
@@ -738,7 +739,7 @@ def test_life_insight_cooldown_discards_recent_insights(session: Session) -> Non
     assert len(insights_in_db) == 1
     assert insights_in_db[0].insight_text == "First insight."
 
-    # Day 8: 2026-07-27 (7 days after first insight) - Cooldown expired, should be saved
+    # Day 3: 2026-07-22 (2 days after first insight) - Cooldown expired, should be saved
     ai3 = FakeAI(
         DailyAIResult(
             praise_message=None,
@@ -758,7 +759,7 @@ def test_life_insight_cooldown_discards_recent_insights(session: Session) -> Non
     service = DailyProcessingService(session=session, ai=ai3)
     res3 = service.process(
         user_id=user.id,
-        entry_date=date(2026, 7, 27),
+        entry_date=date(2026, 7, 22),
         raw_transcript="Journal entry 3",
     )
     assert res3.life_insights == ("Third insight after cooldown.",)
@@ -811,11 +812,14 @@ def test_life_insight_8_day_boundary_simulation(session: Session) -> None:
             "status": "SAVED" if result.life_insights else "DISCARDED (Cooldown active)",
         }
 
-    # Verify Day 1 saved, Days 2-7 discarded, Day 8 saved
+    # Verify alternating save/discard with 2-day cooldown: saved on days 1, 3, 5, 7
     assert saved_days[1]["returned_insight"] == ("Insight candidate for day 1",)
-    for day in range(2, 8):
+    for day in (2, 4, 6, 8):
         assert saved_days[day]["returned_insight"] == (), f"Day {day} should have been discarded"
-    assert saved_days[8]["returned_insight"] == ("Insight candidate for day 8",)
+    for day in (3, 5, 7):
+        assert saved_days[day]["returned_insight"] == (
+            f"Insight candidate for day {day}",
+        ), f"Day {day} should have been saved"
 
 
 def test_percy_scheduled_reminder_creates_task_with_remind_at(session: Session) -> None:
