@@ -133,6 +133,12 @@ function today() {
   return toIsoDate(new Date())
 }
 
+const EVENING_START_HOUR = 18
+
+function isEveningHours(now = new Date()) {
+  return now.getHours() >= EVENING_START_HOUR
+}
+
 function tomorrow() {
   return addDaysToIsoDate(today(), 1)
 }
@@ -476,6 +482,7 @@ function App() {
   const [morningSelectedIds, setMorningSelectedIds] = useState<string[]>([])
   const [savingMorningPlan, setSavingMorningPlan] = useState(false)
   const [eveningMode, setEveningMode] = useState(false)
+  const [clockMs, setClockMs] = useState(() => Date.now())
   const [showAllTasks, setShowAllTasks] = useState(false)
 
   const [sessionUser, setSessionUser] = useState<{ id: string; email?: string } | null>(null)
@@ -692,10 +699,10 @@ function App() {
     if (appendTarget) return null
     if (entryDate !== today()) return null
     if (todayEntry) return null
+    if (isEveningHours(new Date(clockMs)) || eveningMode) return 'evening'
     if (!dailyPlan?.morning_completed_at) return 'morning'
-    if (eveningMode) return 'evening'
     return 'day'
-  }, [view, activeEntry, appendTarget, entryDate, todayEntry, dailyPlan, eveningMode])
+  }, [view, activeEntry, appendTarget, entryDate, todayEntry, dailyPlan, eveningMode, clockMs])
 
   function toggleMorningTask(taskId: string) {
     setMorningSelectedIds((current) =>
@@ -748,6 +755,19 @@ function App() {
       setNarrativeDraft(todayEntry.formatted_narrative)
     }
   }, [view, activeEntry, appendTarget, loading, todayEntry, entryDate, composingNewEntry])
+
+  useEffect(() => {
+    const tick = () => setClockMs(Date.now())
+    const interval = window.setInterval(tick, 60_000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [])
 
   function toggleSidebar() {
     setSidebarOpen((current) => !current)
