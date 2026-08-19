@@ -482,6 +482,7 @@ function App() {
   const [morningSelectedIds, setMorningSelectedIds] = useState<string[]>([])
   const [savingMorningPlan, setSavingMorningPlan] = useState(false)
   const [eveningMode, setEveningMode] = useState(false)
+  const [dismissedMorning, setDismissedMorning] = useState(false)
   const [clockMs, setClockMs] = useState(() => Date.now())
   const [showAllTasks, setShowAllTasks] = useState(false)
 
@@ -700,9 +701,10 @@ function App() {
     if (entryDate !== today()) return null
     if (todayEntry) return null
     if (isEveningHours(new Date(clockMs)) || eveningMode) return 'evening'
-    if (!dailyPlan?.morning_completed_at) return 'morning'
-    return 'day'
-  }, [view, activeEntry, appendTarget, entryDate, todayEntry, dailyPlan, eveningMode, clockMs])
+    const hasMorningPlan = (dailyPlan?.selected_task_ids.length ?? 0) > 0
+    if (hasMorningPlan || dismissedMorning) return 'day'
+    return 'morning'
+  }, [view, activeEntry, appendTarget, entryDate, todayEntry, dailyPlan, eveningMode, clockMs, dismissedMorning])
 
   function toggleMorningTask(taskId: string) {
     setMorningSelectedIds((current) =>
@@ -720,6 +722,7 @@ function App() {
       const plan = await saveDailyPlan(userId, today(), morningSelectedIds, true)
       setDailyPlan(plan)
       setEveningMode(false)
+      setDismissedMorning(morningSelectedIds.length === 0)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to save your plan for today.')
     } finally {
@@ -735,6 +738,7 @@ function App() {
       const plan = await saveDailyPlan(userId, today(), [], true)
       setDailyPlan(plan)
       setEveningMode(false)
+      setDismissedMorning(true)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to skip morning planning.')
     } finally {
@@ -784,6 +788,7 @@ function App() {
     setEntryDate(today())
     setAppendTarget(null)
     setEveningMode(false)
+    setDismissedMorning(false)
     setError('')
     if (isMobileViewport()) setSidebarOpen(false)
     requestAnimationFrame(() => {
@@ -2088,11 +2093,16 @@ function App() {
               {plannedTasks.map(renderPlannedTaskCheckoff)}
             </ul>
           ) : (
-            <p className="alignment">You skipped picking tasks this morning. You can still close your day tonight.</p>
+            <p className="alignment">No tasks picked yet. Plan your morning, or close the day tonight.</p>
           )}
 
           <div className="bookend-actions">
-            <button className="primary-button large" onClick={beginEvening}>
+            {plannedTasks.length === 0 && (
+              <button className="primary-button large" onClick={() => setDismissedMorning(false)}>
+                <Sunrise /> Plan my day
+              </button>
+            )}
+            <button className={plannedTasks.length === 0 ? 'ghost-button' : 'primary-button large'} onClick={beginEvening}>
               <Moon /> Close my day
             </button>
           </div>
