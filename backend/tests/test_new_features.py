@@ -180,6 +180,41 @@ def test_percy_create_goal_endpoint(client: TestClient, session: Session) -> Non
     assert "gym" in data["reply"].lower()
 
 
+def test_percy_create_goal_parses_schedule_from_raw_query(client: TestClient, session: Session) -> None:
+    user = User()
+    session.add(user)
+    session.commit()
+
+    class NoScheduleAI(DummyAI):
+        def extract_json(
+            self, *, system_prompt: str, user_prompt: str, schema_class: type[Any], **kwargs: Any
+        ) -> Any:
+            from app.ai.schemas import PercyGoalExtracted
+
+            if schema_class is PercyGoalExtracted:
+                return PercyGoalExtracted(
+                    goal_text="Meditate",
+                    target_count=1,
+                    reply="I've created your goal 'Meditate' for this week!",
+                )
+            return super().extract_json(
+                system_prompt=system_prompt, user_prompt=user_prompt, schema_class=schema_class, **kwargs
+            )
+
+    app.dependency_overrides[get_journal_ai] = lambda: NoScheduleAI()
+    resp = client.post(
+        f"/api/users/{user.id}/percy/create-goal",
+        json={
+            "user_query": "remind me tomorrow at 7am to meditate",
+            "week_start_date": "2026-08-17",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["goal"]["goal_text"] == "Meditate"
+    assert data["goal"]["remind_at"] is not None
+
+
 def test_finish_weekly_planning_and_reopen(client: TestClient, session: Session) -> None:
     user = User()
     session.add(user)

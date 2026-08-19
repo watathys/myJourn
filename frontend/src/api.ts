@@ -327,6 +327,7 @@ export function createWeeklyGoal(
 
 export type GoalUpdate = {
   status?: Goal['status']
+  goal_text?: string
   target_count?: number
   current_count?: number
   remind_at?: string | null

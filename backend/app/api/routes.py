@@ -706,8 +706,21 @@ def update_goal(
 
     fields_set = payload.model_fields_set
 
+    if "goal_text" in fields_set and payload.goal_text is not None:
+        clean_goal_text = payload.goal_text.strip()
+        if not clean_goal_text:
+            raise HTTPException(status_code=422, detail="goal_text must not be empty")
+        goal.goal_text = clean_goal_text
+
     if "target_count" in fields_set and payload.target_count is not None:
         goal.target_count = max(1, payload.target_count)
+        # Keep the goal consistent when the target is edited (e.g. 4x -> 5x).
+        if "current_count" not in fields_set:
+            goal.current_count = max(0, min(goal.target_count, goal.current_count))
+            if goal.current_count >= goal.target_count:
+                goal.status = GoalStatus.COMPLETED
+            elif goal.status == GoalStatus.COMPLETED:
+                goal.status = GoalStatus.PENDING
     if "current_count" in fields_set and payload.current_count is not None:
         goal.current_count = max(0, min(goal.target_count, payload.current_count))
         if goal.current_count >= goal.target_count:

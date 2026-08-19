@@ -952,6 +952,74 @@ svg { flex: 0 0 auto; }
   color: var(--forest);
 }
 
+/* Inline goal edit form */
+.goal-edit-form {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+.goal-edit-form > input {
+  background: #faf9f5;
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: var(--ink);
+  flex: 1 1 140px;
+  font-size: 14px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+.goal-edit-form > input:focus {
+  background: white;
+  border-color: #9aae9f;
+  outline: 0;
+}
+.goal-edit-target {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 6px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.goal-edit-target input {
+  background: white;
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: var(--ink);
+  font-size: 13px;
+  padding: 7px 8px;
+  width: 64px;
+}
+.goal-edit-target input:focus {
+  border-color: #9aae9f;
+  outline: 0;
+}
+.goal-edit-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 3px;
+}
+.goal-edit-actions .icon-button {
+  border-radius: 8px;
+  color: #837f74;
+  padding: 6px;
+}
+.goal-edit-actions .icon-button:hover {
+  background: #eef1e9;
+  color: var(--forest);
+}
+.goal-edit-actions .icon-button svg {
+  width: 15px;
+}
+
 /* Percy Goal Setter Section */
 .percy-goal-card {
   background: #f7f9f5;

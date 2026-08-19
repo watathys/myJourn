@@ -136,6 +136,10 @@ class PercyGoalExtracted(BaseModel):
         le=1000,
         description="Number of checkable boxes/repetitions for this week. E.g., 'every day this week' or 'daily' = 7, '5 times' = 5. Default to 1 if not specified.",
     )
+    schedule_phrase: Optional[str] = Field(
+        default=None,
+        description="Natural-language day/time the user gave for a calendar reminder (e.g. 'tomorrow at 7am', 'every day at 3pm', 'thursday at 9am'), or null if no reminder was requested.",
+    )
     remind_time_str: Optional[str] = Field(
         default=None,
         description="Time string if a specific time of day was requested (e.g. '9am-10am', '9:00 AM', '8:30pm'), or null if no time was mentioned.",

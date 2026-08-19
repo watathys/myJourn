@@ -138,6 +138,7 @@ class CreateGoalRequest(BaseModel):
 class UpdateGoalRequest(BaseModel):
     user_id: str
     status: Optional[GoalStatus] = None
+    goal_text: Optional[str] = None
     target_count: Optional[int] = None
     current_count: Optional[int] = None
     remind_at: Optional[datetime] = None

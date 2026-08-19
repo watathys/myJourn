@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -15,6 +15,7 @@ from app.ai.schemas import PercyGoalExtracted
 from app.config import Settings
 from app.models import GoalKind, GoalStatus, OpenLoopAndGoal, User
 from app.services import google_calendar
+from app.services.schedule_parsing import parse_natural_language_item, parse_schedule_phrase
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +87,10 @@ Carefully extract the goal details from the user prompt:
    - '5 days a week', '5x' = 5
    - '3 times' = 3
    - If not specified, default to 1.
-3. `remind_time_str`: Time string if a time of day was requested (e.g. '9am-10am', '9:00 AM', '8:30pm'), or null if no time was mentioned.
-4. `is_daily_recurring`: true if the user asked to be reminded every day / daily / each day this week.
-5. `reply`: A warm, friendly 1-2 sentence response from Percy confirming the goal created, target checkmarks, and any calendar reminders scheduled.
+3. `schedule_phrase`: The exact natural-language day/time the user asked to be reminded, if any (e.g. 'tomorrow at 7am', 'every day at 3pm', 'thursday at 9am'). Null if no reminder/day/time was mentioned.
+4. `remind_time_str`: Time string if a specific time of day was requested (e.g. '9am-10am', '9:00 AM', '8:30pm'), or null if no time was mentioned.
+5. `is_daily_recurring`: true if the user asked to be reminded every day / daily / each day this week.
+6. `reply`: A warm, friendly 1-2 sentence response from Percy confirming the goal created, target checkmarks, and any calendar reminders scheduled.
 """
 
     try:
@@ -111,6 +113,7 @@ Carefully extract the goal details from the user prompt:
         extracted = PercyGoalExtracted(
             goal_text=user_query.strip()[:100],
             target_count=7 if "every day" in user_query.lower() or "daily" in user_query.lower() else 1,
+            schedule_phrase=user_query.strip(),
             remind_time_str="9:00 AM" if "remind" in user_query.lower() or "am" in user_query.lower() else None,
             is_daily_recurring="every day" in user_query.lower() or "daily" in user_query.lower(),
             reply=f"I've created your goal '{user_query.strip()[:60]}' for this week!"
@@ -130,9 +133,44 @@ Carefully extract the goal details from the user prompt:
         or 0
     ) + 1
 
-    remind_at, duration_minutes = parse_time_string(
-        extracted.remind_time_str, week_start_date
-    )
+    remind_at = None
+    duration_minutes = google_calendar.EVENT_DURATION_MINUTES
+    schedule_source = (extracted.schedule_phrase or extracted.remind_time_str or "").strip()
+    if schedule_source:
+        # Resolve the full phrase (e.g. "tomorrow at 7am") relative to today so
+        # relative dates are honored, not collapsed onto the week start date.
+        reminder_phrase = schedule_source
+        if extracted.is_daily_recurring:
+            reminder_phrase = re.sub(
+                r"\b(?:every\s+day|each\s+day|daily)\b",
+                "tomorrow",
+                schedule_source,
+                flags=re.IGNORECASE,
+            )
+        remind_at = parse_schedule_phrase(reminder_phrase, base_date=date.today())
+        if remind_at is None:
+            remind_at = parse_schedule_phrase(schedule_source, base_date=date.today())
+
+        _, duration_minutes = parse_time_string(extracted.remind_time_str, date.today())
+
+    # The AI can return a schedule phrase dateparser can't fully resolve (or omit
+    # the schedule entirely). Fall back to parsing the user's own words
+    # deterministically so a request like "remind me tomorrow at 7am to meditate"
+    # still lands on the calendar.
+    if remind_at is None:
+        _, fallback_remind_at, _, _, _ = parse_natural_language_item(
+            user_query,
+            base_date=date.today(),
+            ai=None,
+            item_type="goal",
+        )
+        if fallback_remind_at is not None:
+            remind_at = fallback_remind_at
+
+    # Never schedule a reminder in the past; a bare time like "7am" after 7am
+    # should roll to the next day.
+    if remind_at is not None and remind_at <= datetime.now(timezone.utc):
+        remind_at = remind_at + timedelta(days=1)
 
     goal = OpenLoopAndGoal(
         user_id=user_id,

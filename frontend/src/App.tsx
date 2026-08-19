@@ -376,6 +376,7 @@ function App() {
   const [userId, setUserId] = useState('')
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [activeEntry, setActiveEntry] = useState<JournalEntry | null>(null)
+  const [composingNewEntry, setComposingNewEntry] = useState(false)
   const [draft, setDraft] = useState(() => localStorage.getItem(DRAFT_KEY) ?? '')
   const [entryDate, setEntryDate] = useState(
     () => (
@@ -438,6 +439,9 @@ function App() {
   const [deletingAdviceId, setDeletingAdviceId] = useState<string | null>(null)
   const [activeChatInsight, setActiveChatInsight] = useState<{ id?: string; text: string } | null>(null)
   const [updatingGoalId, setUpdatingGoalId] = useState<string | null>(null)
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
+  const [editGoalText, setEditGoalText] = useState('')
+  const [editGoalTarget, setEditGoalTarget] = useState(1)
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null)
   const [scheduleModal, setScheduleModal] = useState<ScheduleModalState | null>(null)
   const [savingSchedule, setSavingSchedule] = useState(false)
@@ -738,12 +742,12 @@ function App() {
   }
 
   useEffect(() => {
-    if (view !== 'journal' || activeEntry || appendTarget || loading) return
+    if (view !== 'journal' || activeEntry || appendTarget || loading || composingNewEntry) return
     if (todayEntry && entryDate === today()) {
       setActiveEntry(todayEntry)
       setNarrativeDraft(todayEntry.formatted_narrative)
     }
-  }, [view, activeEntry, appendTarget, loading, todayEntry, entryDate])
+  }, [view, activeEntry, appendTarget, loading, todayEntry, entryDate, composingNewEntry])
 
   function toggleSidebar() {
     setSidebarOpen((current) => !current)
@@ -752,6 +756,7 @@ function App() {
   function startNewEntry(prefill = '') {
     setView('journal')
     setActiveEntry(null)
+    setComposingNewEntry(true)
     setEditingNarrative(false)
     setNarrativeDraft('')
     setEditingDate(false)
@@ -777,6 +782,7 @@ function App() {
 
   function openEntry(entry: JournalEntry) {
     setActiveEntry(entry)
+    setComposingNewEntry(false)
     setEditingNarrative(false)
     setNarrativeDraft(entry.formatted_narrative)
     setEditingDate(false)
@@ -994,6 +1000,7 @@ function App() {
       setEntries(refreshedEntries)
       setTasks(refreshedTasks)
       setActiveEntry(savedEntry)
+      setComposingNewEntry(false)
       setNarrativeDraft(savedEntry.formatted_narrative)
       setEditingNarrative(false)
       setDraft('')
@@ -1280,6 +1287,31 @@ function App() {
     }
   }
 
+  function startEditingGoal(goal: Goal) {
+    setEditingGoalId(goal.id)
+    setEditGoalText(goal.goal_text)
+    setEditGoalTarget(goal.target_count ?? 1)
+  }
+
+  async function saveGoalEdit(goal: Goal) {
+    const cleanText = editGoalText.trim()
+    if (!userId || !cleanText) return
+    const target = Math.min(1000, Math.max(1, Math.floor(editGoalTarget) || 1))
+    setUpdatingGoalId(goal.id)
+    setError('')
+    try {
+      const updated = await updateGoal(userId, goal.id, { goal_text: cleanText, target_count: target })
+      const applyEdit = (goals: Goal[]) => goals.map((item) => (item.id === goal.id ? updated : item))
+      setWeeklyGoals(applyEdit)
+      setLastWeekGoals(applyEdit)
+      setEditingGoalId(null)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to update that goal.')
+    } finally {
+      setUpdatingGoalId(null)
+    }
+  }
+
   function clearGoalDrag() {
     setDraggedGoalId(null)
     setGoalDropTarget(null)
@@ -1366,6 +1398,59 @@ function App() {
       )
     }
 
+    if (editingGoalId === goal.id) {
+      return (
+        <li className="goal-item goal-editing" key={goal.id}>
+          <div className="goal-edit-form">
+            <input
+              value={editGoalText}
+              onChange={(event) => setEditGoalText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void saveGoalEdit(goal)
+                if (event.key === 'Escape') setEditingGoalId(null)
+              }}
+              placeholder="Goal"
+              aria-label="Goal text"
+              autoFocus
+            />
+            <div className="goal-edit-target">
+              <label htmlFor={`goal-edit-target-${goal.id}`}>Target</label>
+              <input
+                id={`goal-edit-target-${goal.id}`}
+                type="number"
+                min={1}
+                max={1000}
+                value={editGoalTarget}
+                onChange={(event) => setEditGoalTarget(Number(event.target.value))}
+                aria-label="Target count"
+              />
+              <span>x</span>
+            </div>
+            <div className="goal-edit-actions">
+              <button
+                className="icon-button"
+                disabled={updatingGoalId === goal.id || !editGoalText.trim()}
+                onClick={() => void saveGoalEdit(goal)}
+                aria-label="Save goal"
+                title="Save"
+              >
+                <Check />
+              </button>
+              <button
+                className="icon-button"
+                disabled={updatingGoalId === goal.id}
+                onClick={() => setEditingGoalId(null)}
+                aria-label="Cancel editing"
+                title="Cancel"
+              >
+                <X />
+              </button>
+            </div>
+          </div>
+        </li>
+      )
+    }
+
     const classNames = [`goal-${goal.status}`, 'goal-item']
     if (isCompleted) classNames.push('goal-completed')
     if (goal.just_resurfaced) classNames.push('task-highlight')
@@ -1403,6 +1488,15 @@ function App() {
           </div>
         </div>
         <div className="goal-actions task-actions">
+          <button
+            className="icon-button"
+            disabled={updatingGoalId === goal.id}
+            onClick={() => startEditingGoal(goal)}
+            aria-label={`Edit ${goal.goal_text}`}
+            title="Edit goal"
+          >
+            <Pencil />
+          </button>
           <button
             className="icon-button"
             disabled={updatingGoalId === goal.id}
@@ -2097,14 +2191,14 @@ function App() {
             {journalGoals.length > 0 ? (
               <ul className="goals">{journalGoals.map((goal) => renderGoal(goal))}</ul>
             ) : (
-              <p className="alignment">No goals set for this week yet. Add one below (e.g. "remind me every day at 3pm to fill up my water bottle").</p>
+              <p className="alignment">No goals set for this week yet. Add one below.</p>
             )}
             <div className="goal-input-row">
               <input
                 value={newGoalDraft}
                 onChange={(event) => setNewGoalDraft(event.target.value)}
                 onKeyDown={(event) => { if (event.key === 'Enter') addWeeklyGoal() }}
-                placeholder="e.g. remind me every day at 3pm to fill up my water bottle"
+                placeholder="Input your goal here"
                 aria-label="New goal for the week"
               />
               <div className="target-count-selector">
@@ -2517,7 +2611,7 @@ function App() {
           <span className="wordmark-mark"><BookOpen /></span><span>Bookends</span>
         </button>
         <nav aria-label="Primary navigation">
-          <button className={view === 'journal' ? 'nav-link active' : 'nav-link'} onClick={() => setView('journal')}>Today</button>
+          <button className={view === 'journal' ? 'nav-link active' : 'nav-link'} onClick={() => { setComposingNewEntry(false); setView('journal') }}>Today</button>
           <button className={view === 'weekly' ? 'nav-link active' : 'nav-link'} onClick={() => setView('weekly')}><CalendarRange /> Weekly Planning</button>
           <button className={view === 'import' ? 'nav-link active' : 'nav-link'} onClick={() => setView('import')}><Upload /> Import</button>
           <button className={view === 'northstar' ? 'nav-link active' : 'nav-link'} onClick={() => setView('northstar')}>
@@ -3046,7 +3140,7 @@ function App() {
                       value={newGoalDraft}
                       onChange={(event) => setNewGoalDraft(event.target.value)}
                       onKeyDown={(event) => { if (event.key === 'Enter') addWeeklyGoal() }}
-                      placeholder="e.g. remind me every day at 3pm to fill up my water bottle"
+                      placeholder="Input your goal here"
                       aria-label="New goal for the week"
                     />
                     <div className="target-count-selector">
