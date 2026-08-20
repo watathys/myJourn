@@ -2193,6 +2193,10 @@ function App() {
             {saveVerbatim ? 'Save to my journal' : 'Reflect on my day'} <ChevronRight />
           </button>
         </div>
+
+        {renderWorkingOnCard('Keep in mind as you write')}
+        {renderWeeklyGoalsCard()}
+        {renderNextWeekRemindersCard()}
       </section>
     )
   }
