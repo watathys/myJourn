@@ -133,10 +133,12 @@ function today() {
   return toIsoDate(new Date())
 }
 
+const MORNING_START_HOUR = 5
 const EVENING_START_HOUR = 18
 
 function isEveningHours(now = new Date()) {
-  return now.getHours() >= EVENING_START_HOUR
+  const hour = now.getHours()
+  return hour >= EVENING_START_HOUR || hour < MORNING_START_HOUR
 }
 
 function tomorrow() {
