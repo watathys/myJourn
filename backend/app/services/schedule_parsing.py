@@ -22,6 +22,82 @@ from app.services.goal_helpers import parse_target_count_from_text
 logger = logging.getLogger(__name__)
 
 DEFAULT_REMINDER_HOUR = 9
+DEFAULT_DURATION_MINUTES = 15
+
+
+def parse_time_string(
+    time_str: Optional[str], base_date: date
+) -> tuple[Optional[datetime], int]:
+    """Parse a time string like '9am-10am', '6-7pm', or '9:00 AM' into (remind_at, duration_minutes)."""
+    if not time_str:
+        return None, DEFAULT_DURATION_MINUTES
+
+    time_str_clean = time_str.strip().lower()
+
+    # Prefer explicit ranges so "6-7pm" becomes 18:00–19:00 (not 7pm alone).
+    range_match = re.search(
+        r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
+        time_str_clean,
+    )
+    if range_match:
+        start_h = int(range_match.group(1))
+        start_m = int(range_match.group(2) or 0)
+        start_ampm = range_match.group(3)
+        end_h = int(range_match.group(4))
+        end_m = int(range_match.group(5) or 0)
+        end_ampm = range_match.group(6)
+        if start_ampm is None and end_ampm is not None:
+            start_ampm = end_ampm
+
+        def apply_ampm(hour: int, ampm: Optional[str]) -> int:
+            if ampm == "pm" and hour < 12:
+                return hour + 12
+            if ampm == "am" and hour == 12:
+                return 0
+            return hour
+
+        start_h = apply_ampm(start_h, start_ampm)
+        end_h = apply_ampm(end_h, end_ampm)
+        target_date = base_date if base_date >= date.today() else date.today()
+        remind_at = datetime.combine(
+            target_date, time(start_h, start_m), tzinfo=timezone.utc
+        )
+        start_mins = start_h * 60 + start_m
+        end_mins = end_h * 60 + end_m
+        duration = end_mins - start_mins if end_mins > start_mins else DEFAULT_DURATION_MINUTES
+        return remind_at, duration
+
+    matches = list(
+        re.finditer(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", time_str_clean)
+    )
+    if not matches:
+        return None, DEFAULT_DURATION_MINUTES
+
+    def match_to_time(m: re.Match[str]) -> tuple[int, int]:
+        hour = int(m.group(1))
+        minute = int(m.group(2)) if m.group(2) else 0
+        ampm = m.group(3)
+        if ampm == "pm" and hour < 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        return hour, minute
+
+    start_h, start_m = match_to_time(matches[0])
+    target_date = base_date if base_date >= date.today() else date.today()
+    remind_at = datetime.combine(
+        target_date, time(start_h, start_m), tzinfo=timezone.utc
+    )
+
+    duration = DEFAULT_DURATION_MINUTES
+    if len(matches) >= 2:
+        end_h, end_m = match_to_time(matches[1])
+        start_mins = start_h * 60 + start_m
+        end_mins = end_h * 60 + end_m
+        if end_mins > start_mins:
+            duration = end_mins - start_mins
+
+    return remind_at, duration
 
 
 def parse_schedule_phrase(phrase: str, *, base_date: date) -> Optional[datetime]:
@@ -64,7 +140,7 @@ def parse_natural_language_item(
     """
     clean_input = user_input.strip()
     if not clean_input:
-        return "", None, 1, False, 15
+        return "", None, 1, False, DEFAULT_DURATION_MINUTES
 
     if ai is not None and settings is not None:
         try:
@@ -96,19 +172,29 @@ Extract:
 
             clean_text = extracted.clean_text.strip() or clean_input
             if not extracted.has_schedule and not extracted.schedule_phrase and not extracted.remind_time_str:
-                return clean_text, None, max(1, extracted.target_count), False, 15
+                return clean_text, None, max(1, extracted.target_count), False, DEFAULT_DURATION_MINUTES
 
             phrase_to_parse = extracted.schedule_phrase or extracted.remind_time_str or clean_input
-            remind_at = parse_schedule_phrase(phrase_to_parse, base_date=base_date)
+            ranged_remind, duration = parse_time_string(
+                extracted.remind_time_str or extracted.schedule_phrase or clean_input,
+                base_date,
+            )
+            remind_at = None
+            if ranged_remind is not None and duration != DEFAULT_DURATION_MINUTES:
+                remind_at = ranged_remind
+            if remind_at is None:
+                remind_at = parse_schedule_phrase(phrase_to_parse, base_date=base_date)
             if remind_at is None and extracted.remind_time_str:
                 remind_at = parse_schedule_phrase(extracted.remind_time_str, base_date=base_date)
+            if remind_at is None and ranged_remind is not None:
+                remind_at = ranged_remind
 
             is_daily = extracted.is_daily_recurring or "every day" in clean_input.lower() or "daily" in clean_input.lower()
             target_cnt = max(1, extracted.target_count)
             if is_daily and target_cnt < 7 and item_type == "goal":
                 target_cnt = 7
 
-            return clean_text, remind_at, target_cnt, is_daily, 15
+            return clean_text, remind_at, target_cnt, is_daily, duration
         except Exception as exc:
             logger.warning("AI schedule parsing failed, using fallback: %s", exc, exc_info=True)
 
@@ -130,16 +216,29 @@ Extract:
         clean_text = clean_input
 
     remind_at = None
+    duration = DEFAULT_DURATION_MINUTES
     if has_remind_keyword:
+        range_from_text, range_duration = parse_time_string(clean_input, base_date)
         match = re.search(
-            r"\b((?:(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today))\s*(?:at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?|\d{1,2}(?::\d{2})?\s*(?:am|pm)|every\s+day\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b",
+            r"\b((?:(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today))\s*(?:at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?|\d{1,2}(?::\d{2})?\s*(?:am|pm)(?:\s*[-–]\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?|\d{1,2}(?::\d{2})?\s*[-–]\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)|every\s+day\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b",
             lower,
         )
         if match:
             phrase = match.group(1).replace("every day at", "today at")
-            remind_at = parse_schedule_phrase(phrase, base_date=base_date)
+            ranged_remind, ranged_dur = parse_time_string(phrase, base_date)
+            if ranged_remind is not None and "-" in phrase.replace("–", "-"):
+                remind_at = ranged_remind
+                duration = ranged_dur
+            else:
+                remind_at = parse_schedule_phrase(phrase, base_date=base_date)
+                _, duration = parse_time_string(phrase, base_date)
+        if remind_at is None and range_from_text is not None and range_duration != DEFAULT_DURATION_MINUTES:
+            remind_at = range_from_text
+            duration = range_duration
         if remind_at is None:
             remind_at = parse_schedule_phrase(clean_input, base_date=base_date)
+            if range_from_text is not None:
+                duration = range_duration
 
-    return clean_text, remind_at, target_cnt, is_daily, 15
+    return clean_text, remind_at, target_cnt, is_daily, duration
 

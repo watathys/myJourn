@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -15,50 +15,13 @@ from app.ai.schemas import PercyGoalExtracted
 from app.config import Settings
 from app.models import GoalKind, GoalStatus, OpenLoopAndGoal, User
 from app.services import google_calendar
-from app.services.schedule_parsing import parse_natural_language_item, parse_schedule_phrase
+from app.services.schedule_parsing import (
+    parse_natural_language_item,
+    parse_schedule_phrase,
+    parse_time_string,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def parse_time_string(
-    time_str: Optional[str], base_date: date
-) -> tuple[Optional[datetime], int]:
-    """Parse time string like '9am-10am' or '9:00 AM' into (remind_at, duration_minutes)."""
-    if not time_str:
-        return None, 15
-
-    time_str_clean = time_str.strip().lower()
-    matches = list(
-        re.finditer(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", time_str_clean)
-    )
-    if not matches:
-        return None, 15
-
-    def match_to_time(m: re.Match) -> tuple[int, int]:
-        hour = int(m.group(1))
-        minute = int(m.group(2)) if m.group(2) else 0
-        ampm = m.group(3)
-        if ampm == "pm" and hour < 12:
-            hour += 12
-        elif ampm == "am" and hour == 12:
-            hour = 0
-        return hour, minute
-
-    start_h, start_m = match_to_time(matches[0])
-    target_date = base_date if base_date >= date.today() else date.today()
-    remind_at = datetime.combine(
-        target_date, time(start_h, start_m), tzinfo=timezone.utc
-    )
-
-    duration = 15
-    if len(matches) >= 2:
-        end_h, end_m = match_to_time(matches[1])
-        start_mins = start_h * 60 + start_m
-        end_mins = end_h * 60 + end_m
-        if end_mins > start_mins:
-            duration = end_mins - start_mins
-
-    return remind_at, duration
 
 
 def create_goal_with_percy(

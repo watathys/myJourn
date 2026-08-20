@@ -313,13 +313,21 @@ def _get_owned_task(session: Session, task_id: str, user_id: str) -> OpenLoopAnd
 
 
 def _sync_or_clear_calendar(
-    session: Session, settings: Settings, user_id: str, task: OpenLoopAndGoal
+    session: Session,
+    settings: Settings,
+    user_id: str,
+    task: OpenLoopAndGoal,
+    *,
+    duration_minutes: int | None = None,
 ) -> None:
     user = session.get(User, user_id)
     if user is None or not user.google_connected:
         return
     try:
-        google_calendar.sync_task_event(settings, user, task)
+        kwargs: dict = {}
+        if duration_minutes is not None:
+            kwargs["duration_minutes"] = duration_minutes
+        google_calendar.sync_task_event(settings, user, task, **kwargs)
     except Exception:  # noqa: BLE001 - calendar sync is always best-effort
         logger.warning("Could not sync calendar event for task %s", task.id, exc_info=True)
 
@@ -366,10 +374,10 @@ def create_task(
     snoozed_until = payload.snoozed_until
     target_count = 1
     is_daily = False
-    duration = google_calendar.EVENT_DURATION_MINUTES
+    duration = payload.duration_minutes or google_calendar.EVENT_DURATION_MINUTES
 
     if remind_at is None:
-        parsed_title, parsed_remind_at, parsed_target_cnt, is_daily, duration = parse_natural_language_item(
+        parsed_title, parsed_remind_at, parsed_target_cnt, is_daily, parsed_duration = parse_natural_language_item(
             clean_text,
             base_date=date.today(),
             ai=ai,
@@ -380,6 +388,8 @@ def create_task(
             clean_text = parsed_title
             remind_at = parsed_remind_at
             target_count = parsed_target_cnt
+            if payload.duration_minutes is None:
+                duration = parsed_duration
         else:
             clean_text = parsed_title
 
@@ -465,7 +475,13 @@ def update_task(
         task.snooze_seen = False
 
     if schedule_changed and task.status == GoalStatus.PENDING:
-        _sync_or_clear_calendar(session, settings, current_user_id, task)
+        _sync_or_clear_calendar(
+            session,
+            settings,
+            current_user_id,
+            task,
+            duration_minutes=payload.duration_minutes,
+        )
 
     session.commit()
     session.refresh(task)
@@ -747,7 +763,13 @@ def update_goal(
         goal.snooze_seen = False
 
     if schedule_changed and goal.status == GoalStatus.PENDING:
-        _sync_or_clear_calendar(session, settings, current_user_id, goal)
+        _sync_or_clear_calendar(
+            session,
+            settings,
+            current_user_id,
+            goal,
+            duration_minutes=payload.duration_minutes,
+        )
 
     session.commit()
     session.refresh(goal)

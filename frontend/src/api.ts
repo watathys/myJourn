@@ -236,10 +236,18 @@ export function getTasks(userId: string): Promise<Task[]> {
   return request(`/users/${userId}/tasks`)
 }
 
-export function createTask(userId: string, goalText: string): Promise<Task> {
+export function createTask(
+  userId: string,
+  goalText: string,
+  options?: { remind_at?: string | null; duration_minutes?: number | null },
+): Promise<Task> {
   return request(`/users/${userId}/tasks`, {
     method: 'POST',
-    body: JSON.stringify({ goal_text: goalText }),
+    body: JSON.stringify({
+      goal_text: goalText,
+      ...(options?.remind_at != null ? { remind_at: options.remind_at } : {}),
+      ...(options?.duration_minutes != null ? { duration_minutes: options.duration_minutes } : {}),
+    }),
   })
 }
 
@@ -249,6 +257,7 @@ export type TaskUpdate = {
   current_count?: number
   remind_at?: string | null
   snoozed_until?: string | null
+  duration_minutes?: number | null
 }
 
 export function updateTask(userId: string, taskId: string, updates: TaskUpdate): Promise<Task> {
@@ -332,6 +341,7 @@ export type GoalUpdate = {
   current_count?: number
   remind_at?: string | null
   snoozed_until?: string | null
+  duration_minutes?: number | null
 }
 
 export function updateGoal(

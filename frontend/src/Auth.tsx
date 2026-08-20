@@ -61,7 +61,7 @@ export function Auth({ onAuthSuccess }: AuthProps) {
           <div className="auth-logo">
             <Sparkles className="auth-logo-icon" />
           </div>
-          <h1 className="auth-title">MyJourn</h1>
+          <h1 className="auth-title">Bookends</h1>
           <p className="auth-subtitle">
             {isSignUp ? 'Create your account to start journaling' : 'Sign in to your personal journal'}
           </p>

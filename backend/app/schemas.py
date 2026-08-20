@@ -89,6 +89,7 @@ class CreateTaskRequest(BaseModel):
     goal_text: str = Field(min_length=1)
     remind_at: Optional[datetime] = None
     snoozed_until: Optional[date] = None
+    duration_minutes: Optional[int] = Field(default=None, ge=1, le=24 * 60)
 
 
 class UpdateTaskRequest(BaseModel):
@@ -98,6 +99,7 @@ class UpdateTaskRequest(BaseModel):
     current_count: Optional[int] = None
     remind_at: Optional[datetime] = None
     snoozed_until: Optional[date] = None
+    duration_minutes: Optional[int] = Field(default=None, ge=1, le=24 * 60)
 
 
 class ReorderTasksRequest(BaseModel):
@@ -143,6 +145,7 @@ class UpdateGoalRequest(BaseModel):
     current_count: Optional[int] = None
     remind_at: Optional[datetime] = None
     snoozed_until: Optional[date] = None
+    duration_minutes: Optional[int] = Field(default=None, ge=1, le=24 * 60)
 
 
 class ReorderGoalsRequest(BaseModel):
