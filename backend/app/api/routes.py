@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, timezone
 from typing import Annotated
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import RedirectResponse
@@ -576,8 +577,7 @@ def upsert_daily_plan(
         owned = session.scalars(
             select(OpenLoopAndGoal.id).where(
                 OpenLoopAndGoal.user_id == current_user_id,
-                OpenLoopAndGoal.kind == GoalKind.TASK,
-                OpenLoopAndGoal.status == GoalStatus.PENDING,
+                OpenLoopAndGoal.status != GoalStatus.ABANDONED,
                 OpenLoopAndGoal.id.in_(selected_ids),
             )
         )
@@ -586,7 +586,7 @@ def upsert_daily_plan(
         if invalid:
             raise HTTPException(
                 status_code=422,
-                detail=f"Invalid or non-pending task IDs: {', '.join(invalid)}",
+                detail=f"Invalid or archived task IDs: {', '.join(invalid)}",
             )
 
     plan = _get_daily_plan(session, current_user_id, plan_date)
@@ -957,6 +957,19 @@ def google_authorize(
     return GoogleAuthorizeResponse(authorization_url=authorization_url)
 
 
+def _make_auth_redirect(redirect_base: str, param_name: str, param_val: str) -> RedirectResponse:
+    parsed = urlparse(redirect_base)
+    qs = parse_qs(parsed.query)
+    qs[param_name] = [param_val]
+    if param_name == "google":
+        qs.pop("google_error", None)
+    elif param_name == "google_error":
+        qs.pop("google", None)
+    new_query = urlencode(qs, doseq=True)
+    new_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+    return RedirectResponse(new_url)
+
+
 @router.get("/auth/google/callback", include_in_schema=False)
 def google_callback(
     code: str,
@@ -965,51 +978,70 @@ def google_callback(
     settings: AppSettings,
 ) -> RedirectResponse:
     redirect_base = settings.google_post_auth_redirect
-    bind_user_rls(session, state)
-    user = session.get(User, state)
-    if user is None:
-        return RedirectResponse(f"{redirect_base}?google_error=user_not_found")
     try:
-        tokens = google_calendar.exchange_code_for_tokens(settings, code=code)
-    except Exception:  # noqa: BLE001 - surface as a redirect, not a 500 page
-        logger.warning("Google OAuth token exchange failed", exc_info=True)
-        return RedirectResponse(f"{redirect_base}?google_error=exchange_failed")
+        bind_user_rls(session, state)
+        user = session.get(User, state)
+        if user is None:
+            logger.warning("Google OAuth callback: User %s not found", state)
+            return _make_auth_redirect(redirect_base, "google_error", "user_not_found")
 
-    user.google_access_token = tokens.access_token
-    if tokens.refresh_token:
-        user.google_refresh_token = tokens.refresh_token
-    if tokens.expiry:
-        expiry = (
-            tokens.expiry
-            if tokens.expiry.tzinfo
-            else tokens.expiry.replace(tzinfo=timezone.utc)
-        )
-        user.google_token_expiry = expiry
-    if tokens.email:
-        user.google_email = tokens.email
-    session.commit()
+        try:
+            tokens = google_calendar.exchange_code_for_tokens(settings, code=code)
+        except Exception:  # noqa: BLE001 - surface as a redirect, not a 500 page
+            logger.warning("Google OAuth token exchange failed", exc_info=True)
+            return _make_auth_redirect(redirect_base, "google_error", "exchange_failed")
 
-    _sync_pending_tasks_after_connect(session, settings, user)
-    return RedirectResponse(f"{redirect_base}?google=connected")
+        user.google_access_token = tokens.access_token
+        if tokens.refresh_token:
+            user.google_refresh_token = tokens.refresh_token
+        if tokens.expiry:
+            expiry = (
+                tokens.expiry
+                if tokens.expiry.tzinfo
+                else tokens.expiry.replace(tzinfo=timezone.utc)
+            )
+            user.google_token_expiry = expiry
+        if tokens.email:
+            user.google_email = tokens.email
+
+        if not user.google_connected:
+            logger.warning("Google OAuth callback: Missing refresh token and user not connected")
+            try:
+                session.commit()
+            except Exception:
+                session.rollback()
+            return _make_auth_redirect(redirect_base, "google_error", "no_refresh_token")
+
+        session.commit()
+
+        _sync_pending_tasks_after_connect(session, settings, user)
+        return _make_auth_redirect(redirect_base, "google", "connected")
+
+    except Exception:
+        logger.exception("Unexpected error during Google OAuth callback")
+        return _make_auth_redirect(redirect_base, "google_error", "server_error")
 
 
 def _sync_pending_tasks_after_connect(session: Session, settings: Settings, user: User) -> None:
     """Backfill calendar events for tasks/goals scheduled before Google was connected."""
 
-    items = session.scalars(
-        select(OpenLoopAndGoal).where(
-            OpenLoopAndGoal.user_id == user.id,
-            OpenLoopAndGoal.status == GoalStatus.PENDING,
-            OpenLoopAndGoal.remind_at.is_not(None),
-            OpenLoopAndGoal.calendar_event_id.is_(None),
+    try:
+        items = session.scalars(
+            select(OpenLoopAndGoal).where(
+                OpenLoopAndGoal.user_id == user.id,
+                OpenLoopAndGoal.status == GoalStatus.PENDING,
+                OpenLoopAndGoal.remind_at.is_not(None),
+                OpenLoopAndGoal.calendar_event_id.is_(None),
+            )
         )
-    )
-    for item in items:
-        try:
-            google_calendar.sync_task_event(settings, user, item)
-        except Exception:  # noqa: BLE001
-            logger.warning("Could not backfill calendar event for item %s", item.id, exc_info=True)
-    session.commit()
+        for item in items:
+            try:
+                google_calendar.sync_task_event(settings, user, item)
+            except Exception:  # noqa: BLE001
+                logger.warning("Could not backfill calendar event for item %s", item.id, exc_info=True)
+        session.commit()
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not complete task backfill after Google connect", exc_info=True)
 
 
 @router.get("/users/{user_id}/google/status", response_model=GoogleStatusResponse)

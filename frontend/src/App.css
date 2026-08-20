@@ -300,6 +300,10 @@ textarea {
 }
 
 .rail-write:hover { background: var(--accent-hover); }
+.rail-write.active {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+  background: var(--accent-hover);
+}
 
 .rail-items {
   display: flex;
@@ -1119,6 +1123,68 @@ textarea {
 }
 
 .chips button:hover { border-color: var(--accent); color: var(--accent-ink); }
+
+/* ------------------------------------------------------------ write page */
+
+.write-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.write-header h1 {
+  margin: var(--s-2) 0 var(--s-1);
+  font-family: var(--serif);
+  font-size: var(--t-2xl);
+  font-weight: 600;
+}
+
+.write-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-md);
+}
+
+.write-card {
+  padding: var(--s-6);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.big-editor textarea {
+  min-height: 280px;
+  font-size: 1.15rem;
+  line-height: 1.6;
+}
+
+.write-underneath {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-5);
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .write-underneath {
+    grid-template-columns: 1fr;
+  }
+}
+
+.saved-entry-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
 
 /* -------------------------------------------------------------- composer */
 

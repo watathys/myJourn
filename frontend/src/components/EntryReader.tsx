@@ -1,5 +1,5 @@
 import { CalendarDays, Check, ChevronRight, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
-import { formatDate, journalDay } from '../lib/day'
+import { formatDate, journalDay, weekAgo } from '../lib/day'
 import { useJournal } from '../state/journalContext'
 import { Narrative } from './ui/Narrative'
 import { Sheet } from './ui/Sheet'
@@ -16,6 +16,8 @@ export function EntryReader() {
 
   const wins = activeEntry.completed_goals ?? []
   const followUps = activeEntry.follow_up_questions ?? []
+
+  const isOverAWeekOld = activeEntry.date < weekAgo()
 
   return (
     <Sheet
@@ -108,7 +110,7 @@ export function EntryReader() {
         </div>
       )}
 
-      {followUps.length > 0 && !editingNarrative && (
+      {followUps.length > 0 && !isOverAWeekOld && !editingNarrative && (
         <section className="follow-ups">
           <h3>A few threads to explore</h3>
           <div className="chips">

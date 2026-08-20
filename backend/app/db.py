@@ -16,15 +16,17 @@ class Base(DeclarativeBase):
 
 
 def _engine_options(database_url: str) -> dict[str, object]:
+    options: dict[str, object] = {"pool_pre_ping": True}
     if database_url.startswith("sqlite"):
-        return {"connect_args": {"check_same_thread": False}}
-    return {}
+        options["connect_args"] = {"check_same_thread": False}
+    else:
+        options["pool_recycle"] = 300
+    return options
 
 
 settings = get_settings()
 engine = create_engine(
     settings.database_url,
-    pool_pre_ping=True,
     **_engine_options(settings.database_url),
 )
 

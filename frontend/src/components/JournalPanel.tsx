@@ -1,10 +1,10 @@
-import { BookOpen, Clock, PenLine, Search } from 'lucide-react'
+import { BookOpen, PenLine, Search } from 'lucide-react'
 import { relativeDayLabel } from '../lib/day'
 import { entryTitle } from '../lib/entries'
 import { useJournal } from '../state/journalContext'
 import { Sheet } from './ui/Sheet'
 
-export function HistoryPanel() {
+export function JournalPanel() {
   const {
     panel, closePanel, filteredEntries, search, setSearch, loading, openEntry, activeEntry,
     entryListRef, openComposer,
@@ -12,11 +12,11 @@ export function HistoryPanel() {
 
   return (
     <Sheet
-      open={panel === 'history'}
+      open={panel === 'journal'}
       onClose={closePanel}
       side="left"
-      eyebrow={<><Clock /> Your journal</>}
-      title="History"
+      eyebrow={<><BookOpen /> Your journal</>}
+      title="Journal"
       subtitle="Everything you've written, newest first."
     >
       <label className="search-box">

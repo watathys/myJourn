@@ -1,24 +1,24 @@
 import { X } from 'lucide-react'
 import { useJournal } from '../state/journalContext'
-import { ComposerSheet } from './ComposerSheet'
 import { EntryReader } from './EntryReader'
-import { HistoryPanel } from './HistoryPanel'
 import { HomeView } from './HomeView'
+import { JournalPanel } from './JournalPanel'
 import { NavRail } from './NavRail'
 import { PercyPanel } from './PercyPanel'
 import { ScheduleModal } from './ScheduleModal'
 import { SettingsPanel } from './SettingsPanel'
 import { WeeklyPanel } from './WeeklyPanel'
+import { WriteView } from './WriteView'
 
 export function AppShell() {
-  const { error, setError, notice, setNotice } = useJournal()
+  const { error, setError, notice, setNotice, activePage } = useJournal()
 
   return (
     <div className="shell">
       <NavRail />
 
       <main className="workspace">
-        <HomeView />
+        {activePage === 'write' ? <WriteView /> : <HomeView />}
       </main>
 
       <div className="toasts">
@@ -36,12 +36,11 @@ export function AppShell() {
         )}
       </div>
 
-      <HistoryPanel />
+      <JournalPanel />
       <WeeklyPanel />
       <PercyPanel />
       <SettingsPanel />
       <EntryReader />
-      <ComposerSheet />
       <ScheduleModal />
     </div>
   )

@@ -112,6 +112,14 @@ def exchange_code_for_tokens(settings: Settings, *, code: str) -> ExchangedToken
         except Exception:  # noqa: BLE001 - email is a nice-to-have, never fatal
             logger.warning("Could not verify Google id_token to read email", exc_info=True)
 
+    if not email and credentials.token:
+        try:
+            service = build("oauth2", "v2", credentials=credentials, cache_discovery=False)
+            user_info = service.userinfo().get().execute()
+            email = user_info.get("email")
+        except Exception:  # noqa: BLE001 - email is a nice-to-have, never fatal
+            logger.warning("Could not fetch userinfo for email fallback", exc_info=True)
+
     return ExchangedTokens(credentials, email)
 
 

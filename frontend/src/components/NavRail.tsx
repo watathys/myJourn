@@ -6,20 +6,15 @@ type NavItem = { id: PanelId; label: string; icon: typeof Clock; badge?: boolean
 
 export function NavRail() {
   const {
-    panel, openPanel, closePanel, openComposer, unreadInsightCount, entries, activeEntry, closeEntry,
+    activePage, goHome, panel, openPanel, closePanel, openComposer, unreadInsightCount, entries, activeEntry,
   } = useJournal()
 
   const items: NavItem[] = [
-    { id: 'history', label: 'History', icon: Clock },
+    { id: 'journal', label: 'Journal', icon: BookOpen },
     { id: 'weekly', label: 'Weekly', icon: CalendarRange },
     { id: 'percy', label: 'Percy', icon: Sparkles, badge: unreadInsightCount > 0 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ]
-
-  function goHome() {
-    closePanel()
-    closeEntry()
-  }
 
   return (
     <nav className="rail" aria-label="Primary navigation">
@@ -28,14 +23,18 @@ export function NavRail() {
         <span className="rail-brand-name">Bookends</span>
       </button>
 
-      <button className="rail-write" onClick={() => openComposer()} title="Write an entry">
+      <button
+        className={activePage === 'write' ? 'rail-write active' : 'rail-write'}
+        onClick={() => openComposer()}
+        title="Write an entry"
+      >
         <PenLine />
         <span>Write</span>
       </button>
 
       <div className="rail-items">
         <button
-          className={!panel && !activeEntry ? 'rail-item active' : 'rail-item'}
+          className={activePage === 'home' && !panel && !activeEntry ? 'rail-item active' : 'rail-item'}
           onClick={goHome}
           title="Today"
         >

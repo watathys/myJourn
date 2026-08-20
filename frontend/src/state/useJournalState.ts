@@ -24,7 +24,8 @@ const DRAFT_KEY = 'myjourn_entry_draft'
 const DRAFT_DATE_KEY = 'myjourn_entry_date'
 const VERBATIM_KEY = 'myjourn_save_verbatim'
 
-export type PanelId = 'history' | 'weekly' | 'percy' | 'settings'
+export type PanelId = 'journal' | 'weekly' | 'percy' | 'settings'
+export type PageId = 'home' | 'write'
 
 /** What the day panel on the home screen is asking the user to do right now. */
 export type DayState = 'plan' | 'focus' | 'reflect' | 'closed'
@@ -56,7 +57,8 @@ export function useJournalState() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  // Navigation: one home screen, everything else is an overlay.
+  // Navigation: main page (home/write), panels and reader overlays.
+  const [activePage, setActivePage] = useState<PageId>('home')
   const [panel, setPanel] = useState<PanelId | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
   const [activeEntry, setActiveEntry] = useState<JournalEntry | null>(null)
@@ -197,11 +199,12 @@ export function useJournalState() {
 
   const plannedTasks = useMemo(() => {
     if (!dailyPlan?.selected_task_ids.length) return []
-    const byId = new Map(tasks.map((task) => [task.id, task]))
+    const allItems = [...tasks, ...(weeklyGoals as unknown as Task[])]
+    const byId = new Map(allItems.map((item) => [item.id, item]))
     return dailyPlan.selected_task_ids
       .map((id) => byId.get(id))
       .filter((task): task is Task => task !== undefined && task.status !== 'abandoned')
-  }, [dailyPlan, tasks])
+  }, [dailyPlan, tasks, weeklyGoals])
 
   const plannedIds = useMemo(() => new Set(plannedTasks.map((task) => task.id)), [plannedTasks])
   const backlogTasks = useMemo(
@@ -344,6 +347,9 @@ export function useJournalState() {
     const connected = params.get('google')
     const googleError = params.get('google_error')
     if (connected || googleError) {
+      if (connected && userId) {
+        getGoogleStatus(userId).then(setGoogleStatus).catch(() => {})
+      }
       setNotice(
         connected
           ? 'Google Calendar connected. Scheduled reminders will now appear on your calendar.'
@@ -354,7 +360,7 @@ export function useJournalState() {
       const rest = params.toString()
       window.history.replaceState({}, '', rest ? `${window.location.pathname}?${rest}` : window.location.pathname)
     }
-  }, [])
+  }, [userId])
 
   // The clock drives the day phase, so keep it fresh while the tab sits open.
   useEffect(() => {
@@ -441,6 +447,14 @@ export function useJournalState() {
 
   /* -------------------------------------------------------------- navigation */
 
+  function goHome() {
+    setActivePage('home')
+    setPanel(null)
+    setActiveEntry(null)
+    setEditingNarrative(false)
+    setEditingDate(false)
+  }
+
   function openPanel(id: PanelId) {
     setPanel(id)
   }
@@ -459,6 +473,7 @@ export function useJournalState() {
     setEntryDate(options.date ?? options.append?.date ?? journalDay())
     setAppendTarget(options.append ?? null)
     setComposerOpen(true)
+    setActivePage('write')
     requestAnimationFrame(() => editorRef.current?.focus())
   }
 
@@ -689,6 +704,9 @@ export function useJournalState() {
       }
       const task = await createTask(userId, clean, options)
       setTasks((current) => sortWorkingTasks([...current, task]))
+      if (planEditing) {
+        setMorningSelectedIds((current) => (current.includes(task.id) ? current : [...current, task.id]))
+      }
       setNewTaskDraft('')
       setNewTaskStartTime('')
       setNewTaskEndTime('')
@@ -1457,7 +1475,7 @@ export function useJournalState() {
     sessionUser, authChecking, userId, loading, error, setError, notice, setNotice, signOut,
 
     // navigation
-    panel, openPanel, closePanel, composerOpen, openComposer, closeComposer,
+    activePage, setActivePage, goHome, panel, openPanel, closePanel, composerOpen, openComposer, closeComposer,
     activeEntry, openEntry, closeEntry, continueThread,
 
     // clock + day

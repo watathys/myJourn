@@ -67,6 +67,40 @@ def test_upsert_daily_plan_creates_and_updates(client: TestClient, session: Sess
     assert get_response.json()["id"] == created["id"]
 
 
+def test_upsert_daily_plan_allows_completed_tasks_and_goals(
+    client: TestClient, session: Session
+) -> None:
+    user = User()
+    session.add(user)
+    session.flush()
+    task_a = OpenLoopAndGoal(
+        user_id=user.id,
+        goal_text="Finished task",
+        status=GoalStatus.COMPLETED,
+        kind=GoalKind.TASK,
+    )
+    goal_b = OpenLoopAndGoal(
+        user_id=user.id,
+        goal_text="Weekly goal focus",
+        status=GoalStatus.PENDING,
+        kind=GoalKind.GOAL,
+    )
+    session.add_all([task_a, goal_b])
+    session.commit()
+
+    response = client.put(
+        f"/api/users/{user.id}/daily-plans/2026-08-17",
+        json={
+            "user_id": user.id,
+            "selected_task_ids": [task_a.id, goal_b.id],
+            "complete_morning": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["selected_task_ids"] == [task_a.id, goal_b.id]
+
+
 def test_upsert_daily_plan_rejects_invalid_task_ids(
     client: TestClient, session: Session
 ) -> None:
