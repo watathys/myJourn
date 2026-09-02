@@ -7,6 +7,8 @@
 
 export const DAY_START_HOUR = 5
 export const EVENING_START_HOUR = 18
+export const DARK_MODE_START_HOUR = 20
+export const DARK_MODE_END_HOUR = 5
 
 export type DayPhase = 'day' | 'evening'
 
@@ -45,6 +47,12 @@ export function journalDay(at: Date = currentTime()): string {
 export function dayPhase(at: Date = currentTime()): DayPhase {
   const hour = at.getHours()
   return hour >= DAY_START_HOUR && hour < EVENING_START_HOUR ? 'day' : 'evening'
+}
+
+/** Whether the current time falls in the automatic dark mode window (8pm to 5am). */
+export function isAutoDarkModeTime(at: Date = currentTime()): boolean {
+  const hour = at.getHours()
+  return hour >= DARK_MODE_START_HOUR || hour < DARK_MODE_END_HOUR
 }
 
 export function addDaysToIsoDate(isoDate: string, days: number) {

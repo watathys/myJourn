@@ -1,4 +1,4 @@
-import { BookOpen, CalendarRange, Clock, Compass, PenLine, Settings, Sparkles } from 'lucide-react'
+import { BookOpen, CalendarRange, Clock, Compass, Moon, PenLine, Settings, Sparkles, Sun } from 'lucide-react'
 import { useJournal } from '../state/journalContext'
 import type { PanelId } from '../state/useJournalState'
 
@@ -7,6 +7,7 @@ type NavItem = { id: PanelId; label: string; icon: typeof Clock; badge?: boolean
 export function NavRail() {
   const {
     activePage, goHome, panel, openPanel, closePanel, openComposer, unreadInsightCount, entries, activeEntry,
+    isDarkMode, toggleThemeMode,
   } = useJournal()
 
   const items: NavItem[] = [
@@ -54,6 +55,15 @@ export function NavRail() {
           </button>
         ))}
       </div>
+
+      <button
+        className="rail-theme-toggle"
+        onClick={toggleThemeMode}
+        title={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+        aria-label={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+      >
+        {isDarkMode ? <Moon /> : <Sun />}
+      </button>
 
       <p className="rail-foot">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</p>
     </nav>

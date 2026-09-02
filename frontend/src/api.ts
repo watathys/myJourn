@@ -531,6 +531,7 @@ export function chatWithPercy(
   history: PercyChatMessage[],
   insightId?: string,
   insightText?: string,
+  threadQuestion?: string,
 ): Promise<{ reply: string }> {
   return request(`/users/${userId}/percy/chat`, {
     method: 'POST',
@@ -539,6 +540,7 @@ export function chatWithPercy(
       history,
       insight_id: insightId,
       insight_text: insightText,
+      thread_question: threadQuestion,
     }),
   })
 }

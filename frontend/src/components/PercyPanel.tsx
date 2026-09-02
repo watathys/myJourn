@@ -18,7 +18,7 @@ export function PercyPanel() {
     panel, closePanel, lifeInsights, dismissInsight, askPercyAboutInsight, chatMessages, chatInput,
     setChatInput, chatLoading, sendPercyMessage, savingAdviceIndex, savePercyAdvice, isAdviceSaved,
     savedPercyAdvice, deletingAdviceId, removeSavedAdvice, activeChatInsight, setActiveChatInsight,
-    percyChatRef, percyInputRef,
+    activeChatThread, setActiveChatThread, percyChatRef, percyInputRef,
   } = useJournal()
 
   return (
@@ -64,8 +64,16 @@ export function PercyPanel() {
         <div className="percy-chat" ref={percyChatRef}>
           {activeChatInsight && (
             <div className="percy-focus">
-              <span>Focusing on: “{activeChatInsight.text}”</span>
+              <span>Focusing on insight: “{activeChatInsight.text}”</span>
               <button className="icon-button" onClick={() => setActiveChatInsight(null)} title="Clear focus">
+                <X />
+              </button>
+            </div>
+          )}
+          {activeChatThread && (
+            <div className="percy-focus">
+              <span>Exploring thread from {formatDate(activeChatThread.date)}: “{activeChatThread.question}”</span>
+              <button className="icon-button" onClick={() => setActiveChatThread(null)} title="Clear focus">
                 <X />
               </button>
             </div>
@@ -118,7 +126,7 @@ export function PercyPanel() {
               value={chatInput}
               onChange={(event) => setChatInput(event.target.value)}
               onKeyDown={(event) => { if (event.key === 'Enter') void sendPercyMessage() }}
-              placeholder="Ask Percy about yourself, habits, or insights..."
+              placeholder={activeChatThread ? "Answer Percy's question..." : "Ask Percy about yourself, habits, or insights..."}
               disabled={chatLoading}
               aria-label="Message for Percy"
             />

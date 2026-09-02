@@ -83,6 +83,46 @@
   -webkit-font-smoothing: antialiased;
 }
 
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --background: #121311;
+  --surface: #1a1c18;
+  --surface-raised: #22241f;
+  --surface-sunk: #151714;
+  --surface-tint: #1c2720;
+
+  /* Lines */
+  --line: #292c26;
+  --line-strong: #383c33;
+
+  /* Text */
+  --ink: #f0efe8;
+  --ink-soft: #c3c1b6;
+  --muted: #918f85;
+  --faint: #69675f;
+
+  /* Accent */
+  --forest: #48876a;
+  --accent: #48876a;
+  --accent-hover: #569e7c;
+  --accent-soft: #1d3329;
+  --accent-ink: #a7e2c9;
+  --soft-green: #192e24;
+
+  /* Semantic */
+  --warn: #e39e3c;
+  --warn-soft: #302211;
+  --danger: #e26158;
+  --danger-soft: #381a17;
+
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, .5);
+  --shadow-3: 0 20px 60px rgba(0, 0, 0, .7);
+}
+
 * { box-sizing: border-box; }
 html { background: var(--background); }
 body { margin: 0; min-width: 320px; min-height: 100vh; }

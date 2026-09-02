@@ -15,7 +15,7 @@ import {
 import { supabase } from '../supabase'
 import {
   addDaysToIsoDate, combineToRemindAt, currentTime, dayPhase, durationMinutesFromTimes,
-  journalDay, weekAgo, weekStartOf, type DayPhase,
+  isAutoDarkModeTime, journalDay, weekAgo, weekStartOf, type DayPhase,
 } from '../lib/day'
 import { compareEntries, isMobileViewport, sortWorkingTasks } from '../lib/entries'
 import { makeRowId, parseBulkEntries, type ImportRow } from '../lib/import'
@@ -23,9 +23,11 @@ import { makeRowId, parseBulkEntries, type ImportRow } from '../lib/import'
 const DRAFT_KEY = 'myjourn_entry_draft'
 const DRAFT_DATE_KEY = 'myjourn_entry_date'
 const VERBATIM_KEY = 'myjourn_save_verbatim'
+const THEME_KEY = 'myjourn_theme_mode'
 
 export type PanelId = 'journal' | 'weekly' | 'percy' | 'settings'
 export type PageId = 'home' | 'write'
+export type ThemeMode = 'auto' | 'light' | 'dark'
 
 /** What the day panel on the home screen is asking the user to do right now. */
 export type DayState = 'plan' | 'focus' | 'reflect' | 'closed'
@@ -76,6 +78,13 @@ export function useJournalState() {
   const [northStar, setNorthStar] = useState('')
   const [savedNorthStar, setSavedNorthStar] = useState('')
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null)
+
+  // Theme
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    const saved = localStorage.getItem(THEME_KEY)
+    if (saved === 'light' || saved === 'dark' || saved === 'auto') return saved
+    return 'auto'
+  })
 
   // Composer
   const [draft, setDraft] = useState(() => localStorage.getItem(DRAFT_KEY) ?? '')
@@ -153,6 +162,7 @@ export function useJournalState() {
   const [savingAdviceIndex, setSavingAdviceIndex] = useState<number | null>(null)
   const [deletingAdviceId, setDeletingAdviceId] = useState<string | null>(null)
   const [activeChatInsight, setActiveChatInsight] = useState<{ id?: string; text: string } | null>(null)
+  const [activeChatThread, setActiveChatThread] = useState<{ question: string; date: string; entryId?: string } | null>(null)
   const [percyGoalQuery, setPercyGoalQuery] = useState('')
   const [creatingPercyGoal, setCreatingPercyGoal] = useState(false)
   const [percyGoalReply, setPercyGoalReply] = useState('')
@@ -183,6 +193,13 @@ export function useJournalState() {
   const todayIso = useMemo(() => journalDay(clockDate), [clockDate])
   const phase: DayPhase = useMemo(() => dayPhase(clockDate), [clockDate])
   const weekStart = useMemo(() => weekStartOf(todayIso), [todayIso])
+  const isNightTime = useMemo(() => isAutoDarkModeTime(clockDate), [clockDate])
+
+  const isDarkMode = useMemo(() => {
+    if (themeMode === 'dark') return true
+    if (themeMode === 'light') return false
+    return isNightTime
+  }, [themeMode, isNightTime])
 
   const visibleTasks = useMemo(
     () => sortWorkingTasks(tasks.filter((task) => !task.is_snoozed)),
@@ -445,6 +462,31 @@ export function useJournalState() {
     localStorage.setItem(VERBATIM_KEY, saveVerbatim ? '1' : '0')
   }, [saveVerbatim])
 
+  useEffect(() => {
+    localStorage.setItem(THEME_KEY, themeMode)
+  }, [themeMode])
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (isDarkMode) {
+      root.setAttribute('data-theme', 'dark')
+      root.classList.add('dark')
+    } else {
+      root.setAttribute('data-theme', 'light')
+      root.classList.remove('dark')
+    }
+  }, [isDarkMode])
+
+  function toggleThemeMode() {
+    if (themeMode === 'auto') {
+      setThemeMode(isDarkMode ? 'light' : 'dark')
+    } else if (themeMode === 'dark') {
+      setThemeMode('light')
+    } else {
+      setThemeMode('dark')
+    }
+  }
+
   /* -------------------------------------------------------------- navigation */
 
   function goHome() {
@@ -502,7 +544,15 @@ export function useJournalState() {
   }
 
   function continueThread(entry: JournalEntry, question: string) {
-    openComposer({ prefill: `${question}\n\n`, append: { id: entry.id, date: entry.date } })
+    closeEntry()
+    setActiveChatInsight(null)
+    setActiveChatThread({ question, date: entry.date, entryId: entry.id })
+    setChatMessages([{ role: 'assistant', content: question }])
+    setPanel('percy')
+    setTimeout(() => {
+      percyChatRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      percyInputRef.current?.focus()
+    }, 60)
   }
 
   /* ------------------------------------------------------------- day planning */
@@ -1259,7 +1309,14 @@ export function useJournalState() {
     setError('')
 
     try {
-      const res = await chatWithPercy(userId, textToSend, chatMessages, targetInsight?.id, targetInsight?.text)
+      const res = await chatWithPercy(
+        userId,
+        textToSend,
+        chatMessages,
+        targetInsight?.id,
+        targetInsight?.text,
+        activeChatThread?.question,
+      )
       setChatMessages([...newHistory, { role: 'assistant', content: res.reply }])
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to chat with Percy right now.')
@@ -1310,6 +1367,7 @@ export function useJournalState() {
   }
 
   function askPercyAboutInsight(insight: LifeInsight) {
+    setActiveChatThread(null)
     setActiveChatInsight({ id: insight.id, text: insight.insight_text })
     setChatInput(`Can you tell me more about this insight and how you reached this conclusion: "${insight.insight_text}"?`)
     setPanel('percy')
@@ -1527,11 +1585,12 @@ export function useJournalState() {
     // percy
     chatMessages, chatInput, setChatInput, chatLoading, sendPercyMessage, savingAdviceIndex,
     savePercyAdvice, isAdviceSaved, deletingAdviceId, removeSavedAdvice, activeChatInsight,
-    setActiveChatInsight, askPercyAboutInsight, dismissInsight, percyChatRef, percyInputRef,
-    percyGoalQuery, setPercyGoalQuery, creatingPercyGoal, handlePercyCreateGoal, percyGoalReply,
-    setPercyGoalReply,
+    setActiveChatInsight, activeChatThread, setActiveChatThread, askPercyAboutInsight, dismissInsight,
+    percyChatRef, percyInputRef, percyGoalQuery, setPercyGoalQuery, creatingPercyGoal,
+    handlePercyCreateGoal, percyGoalReply, setPercyGoalReply,
 
-    // settings
+    // settings & theme
+    themeMode, setThemeMode, isNightTime, isDarkMode, toggleThemeMode,
     savingSettings, updateNorthStar, newIncorrectDraft, setNewIncorrectDraft, newCorrectDraft,
     setNewCorrectDraft, addingCorrection, addSpellingCorrection, deletingCorrectionId,
     removeSpellingCorrection,

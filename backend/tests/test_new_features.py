@@ -120,6 +120,17 @@ def test_percy_chat_endpoint(client: TestClient, session: Session) -> None:
     assert "reply" in data
     assert "running" in data["reply"]
 
+    thread_resp = client.post(
+        f"/api/users/{user.id}/percy/chat",
+        json={
+            "message": "idk maybe talk to Taylor about it",
+            "history": [{"role": "assistant", "content": "How are you going to decompress afterwards?"}],
+            "thread_question": "How are you going to decompress afterwards?",
+        },
+    )
+    assert thread_resp.status_code == 200, thread_resp.text
+    assert "reply" in thread_resp.json()
+
 
 def test_goal_reordering_and_scheduling(client: TestClient, session: Session) -> None:
     user = User()

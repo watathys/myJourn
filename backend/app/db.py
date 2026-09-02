@@ -1,14 +1,18 @@
 """Database engine, session lifecycle, and declarative base."""
 
+import socket
 from collections.abc import Generator
 from typing import Any
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
 from app.rls import apply_rls_settings, register_rls_listeners
+
+KNOWN_HOSTADDR_FALLBACKS = {
+    "aws-0-ca-central-1.pooler.supabase.com": "15.156.180.136",
+}
 
 
 class Base(DeclarativeBase):
@@ -31,7 +35,21 @@ engine = create_engine(
 )
 
 
-@event.listens_for(Engine, "connect")
+@event.listens_for(engine, "do_connect")
+def _resolve_hostaddr(dialect: Any, conn_rec: Any, cargs: Any, cparams: dict[str, Any]) -> None:
+    """Resolve Postgres host to IPv4 to prevent macOS libpq DNS resolution failures."""
+
+    host = cparams.get("host")
+    if host and not cparams.get("hostaddr") and not host.startswith("/") and host != "localhost":
+        try:
+            cparams["hostaddr"] = socket.gethostbyname(host)
+        except Exception:
+            fallback = KNOWN_HOSTADDR_FALLBACKS.get(host)
+            if fallback:
+                cparams["hostaddr"] = fallback
+
+
+@event.listens_for(engine, "connect")
 def _enable_sqlite_foreign_keys(dbapi_connection: Any, connection_record: Any) -> None:
     """Make SQLite enforce the same foreign-key rules as Postgres."""
 

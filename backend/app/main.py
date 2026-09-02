@@ -1,12 +1,22 @@
 """FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.db import engine
 from app.rls import clear_rls_user_id
 
-app = FastAPI(title="MyJourn API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    engine.dispose()
+    yield
+
+
+app = FastAPI(title="MyJourn API", version="0.1.0", lifespan=lifespan)
 
 
 @app.middleware("http")

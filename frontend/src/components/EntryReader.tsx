@@ -112,7 +112,10 @@ export function EntryReader() {
 
       {followUps.length > 0 && !isOverAWeekOld && !editingNarrative && (
         <section className="follow-ups">
-          <h3>A few threads to explore</h3>
+          <div className="follow-ups-head">
+            <h3><Sparkles className="sparkle-icon" /> Questions from Percy</h3>
+            <p className="card-eyebrow">Click a thread to chat with Percy and dive deeper</p>
+          </div>
           <div className="chips">
             {followUps.map((question) => (
               <button key={question} onClick={() => continueThread(activeEntry, question)}>

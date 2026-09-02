@@ -224,6 +224,7 @@ class PercyChatRequest(BaseModel):
     history: list[PercyChatMessage] = Field(default_factory=list)
     insight_id: Optional[str] = None
     insight_text: Optional[str] = None
+    thread_question: Optional[str] = None
 
 
 class PercyChatResponse(BaseModel):

@@ -1,6 +1,6 @@
 import {
-  CalendarDays, CalendarRange, Check, ChevronRight, Compass, Link2, LogOut, Plus, Settings,
-  SpellCheck, Trash2, Unlink, Upload,
+  CalendarDays, CalendarRange, Check, ChevronRight, Clock, Compass, Link2, LogOut, Moon, Plus, Settings,
+  SpellCheck, Sun, Trash2, Unlink, Upload,
 } from 'lucide-react'
 import { journalDay } from '../lib/day'
 import { useJournal } from '../state/journalContext'
@@ -14,7 +14,7 @@ export function SettingsPanel() {
     newIncorrectDraft, setNewIncorrectDraft, newCorrectDraft, setNewCorrectDraft, addingCorrection,
     addSpellingCorrection, deletingCorrectionId, removeSpellingCorrection, importRows, addImportRow,
     removeImportRow, updateImportRow, importBulkText, setImportBulkText, parseBulkImport, importing,
-    importProgress, startImport, sessionUser, signOut,
+    importProgress, startImport, sessionUser, signOut, themeMode, setThemeMode, isNightTime,
   } = useJournal()
 
   const stagedCount = importRows.filter((row) => row.date && row.text.trim()).length
@@ -50,6 +50,55 @@ export function SettingsPanel() {
             {savingSettings ? 'Saving...' : northStar === savedNorthStar ? 'Saved' : 'Save changes'}
           </button>
         </div>
+      </Card>
+
+      <Card title="Appearance & Theme" eyebrow="Dark Mode" icon={<Moon />}>
+        <p className="alignment">
+          Choose your theme preference. Auto mode turns dark mode on automatically between 8:00 PM and 5:00 AM.
+        </p>
+        <div className="theme-selector" role="radiogroup" aria-label="Theme selection">
+          <button
+            type="button"
+            className={themeMode === 'auto' ? 'theme-option active' : 'theme-option'}
+            onClick={() => setThemeMode('auto')}
+            role="radio"
+            aria-checked={themeMode === 'auto'}
+          >
+            <Clock />
+            <span>Auto (8pm – 5am)</span>
+          </button>
+          <button
+            type="button"
+            className={themeMode === 'light' ? 'theme-option active' : 'theme-option'}
+            onClick={() => setThemeMode('light')}
+            role="radio"
+            aria-checked={themeMode === 'light'}
+          >
+            <Sun />
+            <span>Light</span>
+          </button>
+          <button
+            type="button"
+            className={themeMode === 'dark' ? 'theme-option active' : 'theme-option'}
+            onClick={() => setThemeMode('dark')}
+            role="radio"
+            aria-checked={themeMode === 'dark'}
+          >
+            <Moon />
+            <span>Dark</span>
+          </button>
+        </div>
+        <p className="theme-status-note">
+          {themeMode === 'auto' ? (
+            isNightTime
+              ? 'Dark mode is automatically on because it is currently between 8pm and 5am.'
+              : 'Light mode is active. Dark mode turns on automatically at 8pm.'
+          ) : themeMode === 'dark' ? (
+            'Dark mode is manually locked on.'
+          ) : (
+            'Light mode is manually locked on.'
+          )}
+        </p>
       </Card>
 
       <Card title="Google Calendar" eyebrow="Reminders" icon={<CalendarRange />}>

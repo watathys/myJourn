@@ -1309,6 +1309,7 @@ def percy_chat_route(
             history=payload.history,
             insight_id=payload.insight_id,
             insight_text=payload.insight_text,
+            thread_question=payload.thread_question,
         )
         return PercyChatResponse(reply=reply)
     except LookupError as exc:

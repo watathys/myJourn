@@ -54,6 +54,7 @@ def chat_with_percy(
     history: list[PercyChatMessage],
     insight_id: Optional[str] = None,
     insight_text: Optional[str] = None,
+    thread_question: Optional[str] = None,
 ) -> str:
     user = session.get(User, user_id)
     if user is None:
@@ -167,11 +168,12 @@ def chat_with_percy(
         else "No active tasks or goals."
     )
 
-    focus_section = (
-        f"\nTARGET INSIGHT BEING DISCUSSED:\n\"{target_insight_str}\"\n"
-        if target_insight_str
-        else ""
-    )
+    focus_section_parts = []
+    if target_insight_str:
+        focus_section_parts.append(f"TARGET INSIGHT BEING DISCUSSED:\n\"{target_insight_str}\"")
+    if thread_question:
+        focus_section_parts.append(f"JOURNAL THREAD FOLLOW-UP QUESTION BEING EXPLORED:\n\"{thread_question}\"")
+    focus_section = ("\n" + "\n\n".join(focus_section_parts) + "\n") if focus_section_parts else ""
 
     system_prompt = f"""You are Percy, a warm, thoughtful, empathetic, and highly perceptive AI journal companion in MyJourn.
 You are chatting directly with the user about themselves, their reflections, habits, patterns, and AI insights.
@@ -199,6 +201,9 @@ INSTRUCTIONS:
 4. Be warm, supportive, and conversational.
 5. Speak in the first person ("I noticed in your entry on...", "Looking back at your journal...").
 6. Stay grounded in the user's actual journal context and do not invent details outside their journal context.
+7. When exploring a follow-up thread question or topic with the user:
+   - Provide warm, empathetic feedback and good, practical, actionable advice on their answer or situation.
+   - Ask thoughtful follow-up questions to help them uncover root causes and guide them on how to improve their lives and well-being.
 """
 
     messages_list = [{"role": msg.role, "content": msg.content} for msg in history]
