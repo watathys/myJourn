@@ -12,6 +12,15 @@ export type Task = {
   is_snoozed: boolean
   just_resurfaced: boolean
   has_calendar_reminder: boolean
+  section_id?: string | null
+}
+
+export type TaskSection = {
+  id: string
+  name: string
+  color: string
+  sort_order: number
+  created_at: string
 }
 
 export type Goal = {
@@ -239,7 +248,7 @@ export function getTasks(userId: string): Promise<Task[]> {
 export function createTask(
   userId: string,
   goalText: string,
-  options?: { remind_at?: string | null; duration_minutes?: number | null },
+  options?: { remind_at?: string | null; duration_minutes?: number | null; section_id?: string | null },
 ): Promise<Task> {
   return request(`/users/${userId}/tasks`, {
     method: 'POST',
@@ -247,6 +256,7 @@ export function createTask(
       goal_text: goalText,
       ...(options?.remind_at != null ? { remind_at: options.remind_at } : {}),
       ...(options?.duration_minutes != null ? { duration_minutes: options.duration_minutes } : {}),
+      ...(options?.section_id != null ? { section_id: options.section_id } : {}),
     }),
   })
 }
@@ -258,6 +268,7 @@ export type TaskUpdate = {
   remind_at?: string | null
   snoozed_until?: string | null
   duration_minutes?: number | null
+  section_id?: string | null
 }
 
 export function updateTask(userId: string, taskId: string, updates: TaskUpdate): Promise<Task> {
@@ -276,6 +287,50 @@ export function acknowledgeTaskSnooze(userId: string, taskId: string): Promise<T
 
 export function reorderTasks(userId: string, orderedIds: string[]): Promise<Task[]> {
   return request(`/users/${userId}/tasks/reorder`, {
+    method: 'PATCH',
+    body: JSON.stringify({ user_id: userId, ordered_ids: orderedIds }),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Task sections (color-coded groupings, e.g. classes)
+// ---------------------------------------------------------------------------
+
+export function getSections(userId: string): Promise<TaskSection[]> {
+  return request(`/users/${userId}/sections`)
+}
+
+export function createSection(
+  userId: string,
+  name: string,
+  color: string,
+): Promise<TaskSection> {
+  return request(`/users/${userId}/sections`, {
+    method: 'POST',
+    body: JSON.stringify({ name, color }),
+  })
+}
+
+export function updateSection(
+  userId: string,
+  sectionId: string,
+  updates: { name?: string; color?: string },
+): Promise<TaskSection> {
+  return request(`/sections/${sectionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ user_id: userId, ...updates }),
+  })
+}
+
+export function deleteSection(userId: string, sectionId: string): Promise<void> {
+  return request(`/sections/${sectionId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ user_id: userId }),
+  })
+}
+
+export function reorderSections(userId: string, orderedIds: string[]): Promise<TaskSection[]> {
+  return request(`/users/${userId}/sections/reorder`, {
     method: 'PATCH',
     body: JSON.stringify({ user_id: userId, ordered_ids: orderedIds }),
   })
@@ -446,6 +501,20 @@ export async function getGoogleAuthorizeUrl(userId: string): Promise<string> {
 
 export function disconnectGoogle(userId: string): Promise<GoogleStatus> {
   return request(`/users/${userId}/google/disconnect`, { method: 'POST' })
+}
+
+export function addToCalendarNaturalLanguage(
+  userId: string,
+  prompt: string,
+): Promise<{
+  summary_message: string
+  created_tasks: Task[]
+  google_connected: boolean
+}> {
+  return request(`/users/${userId}/calendar/add-natural-language`, {
+    method: 'POST',
+    body: JSON.stringify({ prompt }),
+  })
 }
 
 // ---------------------------------------------------------------------------

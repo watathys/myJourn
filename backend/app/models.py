@@ -128,6 +128,9 @@ class User(Base):
     saved_percy_advice: Mapped[list[SavedPercyAdvice]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    task_sections: Mapped[list[TaskSection]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
     @property
     def google_connected(self) -> bool:
@@ -265,6 +268,11 @@ class OpenLoopAndGoal(Base):
         Boolean, server_default="1", default=True, nullable=False
     )
     calendar_event_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    section_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("task_sections.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -276,6 +284,7 @@ class OpenLoopAndGoal(Base):
     completed_by_entry: Mapped[Optional[JournalEntry]] = relationship(
         back_populates="completed_goals", foreign_keys=[completed_by_entry_id]
     )
+    section: Mapped[Optional[TaskSection]] = relationship(back_populates="tasks")
 
     @property
     def is_snoozed(self) -> bool:
@@ -292,6 +301,29 @@ class OpenLoopAndGoal(Base):
     @property
     def has_calendar_reminder(self) -> bool:
         return bool(self.calendar_event_id)
+
+
+class TaskSection(Base):
+    """A user-defined grouping for tasks (e.g. a college class) with a color."""
+
+    __tablename__ = "task_sections"
+    __table_args__ = (
+        Index("ix_task_sections_user_order", "user_id", "sort_order"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    color: Mapped[str] = mapped_column(String(32), nullable=False, default="forest")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="task_sections")
+    tasks: Mapped[list[OpenLoopAndGoal]] = relationship(back_populates="section")
 
 
 class PercyReminder(Base):

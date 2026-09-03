@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
 import dateparser
 
 from app.ai.client import JournalAI
-from app.ai.schemas import ParsedScheduleItem
+from app.ai.schemas import ParsedCalendarBatch, ParsedScheduleItem
 from app.config import Settings
 from app.services.goal_helpers import parse_target_count_from_text
 
@@ -241,4 +241,154 @@ Extract:
                 duration = range_duration
 
     return clean_text, remind_at, target_cnt, is_daily, duration
+
+
+def parse_natural_language_calendar_batch(
+    user_input: str,
+    *,
+    base_date: date,
+    ai: Optional[JournalAI] = None,
+    settings: Optional[Settings] = None,
+) -> tuple[list[tuple[str, datetime, int]], str]:
+    """Parse a complex natural-language schedule request into a batch of (title, remind_at, duration_minutes) items.
+
+    Handles multi-day and multi-time prompts like:
+    "remind me friday, saturday, sunday, and monday, at 8am, 12pm, 4pm, and 8pm to take creatine"
+    """
+    clean_input = user_input.strip()
+    if not clean_input:
+        return [], "No schedule prompt provided."
+
+    if ai is not None and settings is not None:
+        try:
+            today_str = base_date.isoformat()
+            day_name = base_date.strftime("%A")
+            tomorrow_str = (base_date + timedelta(days=1)).isoformat()
+
+            system_prompt = f"""You are a precise assistant extracting calendar events and reminders for MyJourn.
+Today is {day_name}, {today_str}. Tomorrow is {tomorrow_str}.
+
+Extract all requested calendar events/reminders from the user's prompt.
+
+CRITICAL INSTRUCTIONS:
+1. If the user lists MULTIPLE days (e.g. 'friday, saturday, sunday, and monday') AND MULTIPLE times (e.g. '8am, 12pm, 4pm, and 8pm'), generate a separate `ParsedCalendarEventItem` for EVERY combination of day and time (Cartesian product). E.g. 4 days x 4 times = 16 distinct event items.
+2. For days of the week (e.g. Friday, Saturday, Sunday, Monday):
+   - 'today' = {today_str}
+   - 'tomorrow' = {tomorrow_str}
+   - Day names refer to the upcoming occurrences of those days starting from today ({today_str}).
+   - Output `event_date` as exact YYYY-MM-DD string.
+3. Output `start_time` in 24-hour HH:MM format (e.g. '08:00', '12:00', '16:00', '20:00').
+4. Output `title` as a clean, concise task/action name without time or day words (e.g. 'Take creatine', 'Call mom'). Capitalize the first letter nicely.
+5. Provide a warm, clear `summary_message` summarizing what was scheduled (e.g. 'Added 16 reminders to take creatine across Friday, Saturday, Sunday, and Monday.').
+"""
+            try:
+                extracted: ParsedCalendarBatch = ai.extract_json(
+                    system_prompt=system_prompt,
+                    user_prompt=clean_input,
+                    schema_class=ParsedCalendarBatch,
+                    model=settings.openai_fast_model,
+                )
+            except TypeError:
+                extracted = ai.extract_json(
+                    system_prompt=system_prompt,
+                    user_prompt=clean_input,
+                    schema_class=ParsedCalendarBatch,
+                )
+
+            results: list[tuple[str, datetime, int]] = []
+            for item in extracted.items:
+                try:
+                    event_d = date.fromisoformat(item.event_date)
+                    time_parts = [int(p) for p in item.start_time.split(":")]
+                    event_t = time(time_parts[0], time_parts[1] if len(time_parts) > 1 else 0)
+                    remind_dt = datetime.combine(event_d, event_t, tzinfo=timezone.utc)
+                    results.append((item.title, remind_dt, item.duration_minutes))
+                except Exception as parse_err:
+                    logger.warning("Could not parse extracted item %s: %s", item, parse_err)
+
+            if results:
+                return results, extracted.summary_message
+        except Exception as exc:
+            logger.warning("AI batch calendar parsing failed, falling back: %s", exc, exc_info=True)
+
+    # Fallback parser for multi-day / multi-time requests
+    return _fallback_batch_schedule_parse(clean_input, base_date=base_date)
+
+
+def _fallback_batch_schedule_parse(
+    clean_input: str, *, base_date: date
+) -> tuple[list[tuple[str, datetime, int]], str]:
+    lower = clean_input.lower()
+
+    # 1. Detect day names
+    day_map = {
+        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+        "friday": 4, "saturday": 5, "sunday": 6,
+    }
+
+    found_dates: list[date] = []
+    if "today" in lower:
+        found_dates.append(base_date)
+    if "tomorrow" in lower:
+        found_dates.append(base_date + timedelta(days=1))
+
+    for day_name, day_num in day_map.items():
+        if day_name in lower:
+            days_ahead = (day_num - base_date.weekday()) % 7
+            target_d = base_date + timedelta(days=days_ahead)
+            if target_d not in found_dates:
+                found_dates.append(target_d)
+
+    if not found_dates:
+        found_dates = [base_date]
+
+    found_dates.sort()
+
+    # 2. Detect times
+    time_matches = list(re.finditer(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", lower))
+    found_times: list[tuple[int, int]] = []
+
+    for m in time_matches:
+        hour = int(m.group(1))
+        minute = int(m.group(2)) if m.group(2) else 0
+        ampm = m.group(3)
+        if ampm == "pm" and hour < 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        elif ampm is None and hour < 7:
+            hour += 12
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            time_tuple = (hour, minute)
+            if time_tuple not in found_times:
+                found_times.append(time_tuple)
+
+    if not found_times:
+        found_times = [(DEFAULT_REMINDER_HOUR, 0)]
+
+    found_times.sort()
+
+    # 3. Clean title
+    clean_title = re.sub(
+        r"\b(?:remind\s+me|at|and|on|every|day|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b",
+        "",
+        clean_input,
+        flags=re.IGNORECASE,
+    )
+    clean_title = re.sub(r"[,;:\.]+", " ", clean_title)
+    clean_title = re.sub(r"\s+", " ", clean_title).strip()
+    clean_title = re.sub(r"^(?:to|for)\s+", "", clean_title, flags=re.IGNORECASE).strip()
+    if not clean_title:
+        clean_title = clean_input.strip()
+    clean_title = clean_title.capitalize()
+
+    # 4. Cartesian product
+    results: list[tuple[str, datetime, int]] = []
+    for d in found_dates:
+        for h, m in found_times:
+            remind_dt = datetime.combine(d, time(h, m), tzinfo=timezone.utc)
+            results.append((clean_title, remind_dt, DEFAULT_DURATION_MINUTES))
+
+    summary = f"Added {len(results)} reminder{'s' if len(results) != 1 else ''} for '{clean_title}' to your calendar."
+    return results, summary
 

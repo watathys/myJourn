@@ -192,6 +192,50 @@ class ParsedScheduleItem(BaseModel):
     )
 
 
+class ParsedCalendarEventItem(BaseModel):
+    """An individual calendar event extracted from natural language."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(
+        min_length=1,
+        description=(
+            "Clean title/action for the event/task, e.g. 'Take creatine' or 'Call mom'. "
+            "Do not include time or day words here."
+        ),
+    )
+    event_date: str = Field(
+        description="Date in YYYY-MM-DD format based on today's date. Compute the exact date for specified days.",
+    )
+    start_time: str = Field(
+        description="Start time in HH:MM 24-hour format, e.g. '08:00', '12:00', '16:00', '20:00'.",
+    )
+    duration_minutes: int = Field(
+        default=15,
+        ge=1,
+        le=1440,
+        description="Duration in minutes, default 15.",
+    )
+
+
+class ParsedCalendarBatch(BaseModel):
+    """Schema for extracting a batch of calendar reminders from complex natural language prompts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[ParsedCalendarEventItem] = Field(
+        default_factory=list,
+        description=(
+            "List of all extracted distinct date/time event items. "
+            "When multiple days and multiple times are specified, generate an item for EVERY day/time combination (Cartesian product)."
+        ),
+    )
+    summary_message: str = Field(
+        min_length=1,
+        description="A friendly summary confirming what was added to the calendar.",
+    )
+
+
 class WeeklyReflectionAIResult(BaseModel):
     """Structured output schema for the AI weekly reflection call."""
 

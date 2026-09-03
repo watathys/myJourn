@@ -83,6 +83,35 @@ class TaskResponse(BaseModel):
     is_snoozed: bool
     just_resurfaced: bool
     has_calendar_reminder: bool
+    section_id: Optional[str] = None
+
+
+class SectionResponse(BaseModel):
+    """A color-coded grouping for tasks (e.g. a class)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    color: str
+    sort_order: int
+    created_at: datetime
+
+
+class CreateSectionRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    color: Optional[str] = Field(default="forest", max_length=32)
+
+
+class UpdateSectionRequest(BaseModel):
+    user_id: str
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    color: Optional[str] = Field(default=None, max_length=32)
+
+
+class ReorderSectionsRequest(BaseModel):
+    user_id: str
+    ordered_ids: list[str] = Field(min_length=1)
 
 
 class CreateTaskRequest(BaseModel):
@@ -90,6 +119,7 @@ class CreateTaskRequest(BaseModel):
     remind_at: Optional[datetime] = None
     snoozed_until: Optional[date] = None
     duration_minutes: Optional[int] = Field(default=None, ge=1, le=24 * 60)
+    section_id: Optional[str] = None
 
 
 class UpdateTaskRequest(BaseModel):
@@ -100,6 +130,7 @@ class UpdateTaskRequest(BaseModel):
     remind_at: Optional[datetime] = None
     snoozed_until: Optional[date] = None
     duration_minutes: Optional[int] = Field(default=None, ge=1, le=24 * 60)
+    section_id: Optional[str] = None
 
 
 class ReorderTasksRequest(BaseModel):
@@ -199,6 +230,17 @@ class CreatePercyReminderRequest(BaseModel):
 class GoogleStatusResponse(BaseModel):
     connected: bool
     email: Optional[str] = None
+
+
+class AddToCalendarRequest(BaseModel):
+    user_id: Optional[str] = None
+    prompt: str = Field(min_length=1)
+
+
+class AddToCalendarResponse(BaseModel):
+    summary_message: str
+    created_tasks: list[TaskResponse]
+    google_connected: bool
 
 
 class GoogleAuthorizeResponse(BaseModel):

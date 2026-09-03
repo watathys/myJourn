@@ -1,4 +1,5 @@
 import { useJournal } from '../state/journalContext'
+import { CalendarAddCard } from './CalendarAddCard'
 import { DayPanel } from './DayPanel'
 import { GoalCard } from './GoalCard'
 import { RemindersCard } from './RemindersCard'
@@ -24,6 +25,7 @@ export function HomeView() {
       <DayPanel />
       <div className="home-grid">
         <div className="home-column">
+          <CalendarAddCard />
           <TaskCard />
         </div>
         <div className="home-column">

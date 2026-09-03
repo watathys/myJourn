@@ -6,7 +6,8 @@ import { useJournal } from '../state/journalContext'
 export function TaskForm({ placeholder = 'Add a task', onAdded }: { placeholder?: string; onAdded?: (id: string) => void }) {
   const {
     newTaskDraft, setNewTaskDraft, newTaskStartTime, setNewTaskStartTime, newTaskEndTime,
-    setNewTaskEndTime, addingTask, addManualTask, todayIso,
+    setNewTaskEndTime, addingTask, addManualTask, todayIso, sections, newTaskSectionId,
+    setNewTaskSectionId,
   } = useJournal()
 
   async function submit() {
@@ -27,6 +28,21 @@ export function TaskForm({ placeholder = 'Add a task', onAdded }: { placeholder?
         <button className="primary-button" disabled={!newTaskDraft.trim() || addingTask} onClick={() => void submit()}>
           {addingTask ? <span className="button-spinner" /> : <Plus />} Add
         </button>
+      </div>
+      <div className="task-form-section">
+        <label>
+          <span>Section</span>
+          <select
+            value={newTaskSectionId}
+            onChange={(event) => setNewTaskSectionId(event.target.value)}
+            aria-label="Task section"
+          >
+            <option value="">No section</option>
+            {sections.map((section) => (
+              <option key={section.id} value={section.id}>{section.name}</option>
+            ))}
+          </select>
+        </label>
       </div>
       <div className="task-form-times">
         <label>

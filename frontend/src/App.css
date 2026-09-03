@@ -759,6 +759,65 @@ textarea {
 
 /* ------------------------------------------------------------------ forms */
 
+.calendar-add-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.calendar-add-intro {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+
+.calendar-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.calendar-add-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 64px;
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+
+.calendar-add-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.calendar-add-success {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+
+.calendar-add-success p {
+  margin: 0;
+}
+
+.calendar-success-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
 .task-form,
 .goal-form,
 .inline-form {
@@ -777,6 +836,23 @@ textarea {
 
 .task-form-main { display: flex; gap: var(--s-3); }
 .task-form-main input { flex: 1; min-width: 0; }
+
+.task-form-section {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+}
+
+.task-form-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.task-form-section select { min-width: 160px; }
 
 .task-form-times {
   display: flex;
@@ -1883,5 +1959,215 @@ textarea {
   background: var(--surface-sunk);
   color: var(--ink);
   border-color: var(--line-strong);
+}
+
+/* ============================================================ task sections */
+
+/* Color-coded section palettes (light). Each key drives --sec-fg / --sec-bg /
+ * --sec-line on the .section-group element. */
+.section-group[data-color='forest'] { --sec-fg: #2f5a47; --sec-bg: #e9efe9; --sec-line: #d3dfd6; }
+.section-group[data-color='sage']   { --sec-fg: #5f7058; --sec-bg: #eef0ea; --sec-line: #d9dfd2; }
+.section-group[data-color='amber']  { --sec-fg: #9a6a1d; --sec-bg: #f7eed9; --sec-line: #eadbb9; }
+.section-group[data-color='clay']   { --sec-fg: #a8552f; --sec-bg: #f8e9e2; --sec-line: #ecd4ca; }
+.section-group[data-color='sky']    { --sec-fg: #34677f; --sec-bg: #e6eef2; --sec-line: #cddfe6; }
+.section-group[data-color='violet'] { --sec-fg: #65539b; --sec-bg: #edeaf6; --sec-line: #dad3ec; }
+.section-group[data-color='rose']   { --sec-fg: #a04461; --sec-bg: #f7e7ec; --sec-line: #ebced7; }
+.section-group[data-color='slate']  { --sec-fg: #54606c; --sec-bg: #edeff1; --sec-line: #d9dde1; }
+
+[data-theme='dark'] .section-group[data-color='forest'] { --sec-fg: #6fae8d; --sec-bg: #1d3329; --sec-line: #2c473a; }
+[data-theme='dark'] .section-group[data-color='sage']   { --sec-fg: #93a686; --sec-bg: #232a20; --sec-line: #39422f; }
+[data-theme='dark'] .section-group[data-color='amber']  { --sec-fg: #d9a44f; --sec-bg: #332a18; --sec-line: #4a3d22; }
+[data-theme='dark'] .section-group[data-color='clay']   { --sec-fg: #d97a5a; --sec-bg: #35221a; --sec-line: #523027; }
+[data-theme='dark'] .section-group[data-color='sky']    { --sec-fg: #6fa3c2; --sec-bg: #1c2b34; --sec-line: #2b424e; }
+[data-theme='dark'] .section-group[data-color='violet'] { --sec-fg: #9d8cd4; --sec-bg: #262134; --sec-line: #3a3352; }
+[data-theme='dark'] .section-group[data-color='rose']   { --sec-fg: #d5768e; --sec-bg: #33202a; --sec-line: #50303d; }
+[data-theme='dark'] .section-group[data-color='slate']  { --sec-fg: #8fa0b0; --sec-bg: #23282e; --sec-line: #363d45; }
+
+.section-group {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  background: var(--sec-bg, var(--surface-sunk));
+  border-bottom: 1px solid var(--sec-line, var(--line));
+  transition: background .15s ease;
+}
+
+.section-group.is-collapsed .section-head { border-bottom-color: transparent; }
+
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-align: left;
+}
+
+.section-toggle:disabled { cursor: default; opacity: 1; }
+.section-toggle svg { color: var(--faint); }
+
+.section-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--sec-fg, var(--accent));
+  flex-shrink: 0;
+}
+
+.section-group.is-unsectioned .section-dot {
+  background: transparent;
+  border: 2px solid var(--sec-fg, var(--muted));
+}
+
+.section-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  background: var(--sec-bg, var(--surface-sunk));
+  color: var(--sec-fg, var(--accent-ink));
+  font-size: var(--t-xs);
+  font-weight: 700;
+  text-align: center;
+}
+
+.section-actions {
+  display: flex;
+  gap: 2px;
+  padding-right: 6px;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.section-head:hover .section-actions,
+.section-head:focus-within .section-actions { opacity: 1; }
+
+.section-grip {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  color: var(--faint);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.section-head:hover .section-grip,
+.section-head:focus-within .section-grip { opacity: 1; }
+
+.section-body {
+  border-left: 3px solid var(--sec-fg, var(--accent));
+  padding: var(--s-1) 0;
+}
+
+.section-body .rows { margin: 0; }
+
+.section-empty {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  color: var(--faint);
+  font-size: var(--t-xs);
+  font-style: italic;
+}
+
+.section-edit { padding: var(--s-3); }
+
+/* Drop target: the header fills with the section color, like a Chrome tab group. */
+.section-group.is-drop-target {
+  border-color: var(--sec-fg, var(--accent));
+  box-shadow: 0 0 0 2px var(--sec-fg, var(--accent));
+}
+
+.section-group.is-drop-target .section-head {
+  background: var(--sec-fg, var(--accent));
+}
+
+.section-group.is-drop-target .section-toggle,
+.section-group.is-drop-target .section-toggle svg { color: #fff; }
+.section-group.is-drop-target .section-count {
+  background: rgba(255, 255, 255, .24);
+  color: #fff;
+}
+.section-group.is-drop-target .section-dot { background: #fff; }
+.section-group.is-drop-target.is-unsectioned .section-dot { background: transparent; border-color: #fff; }
+
+/* Section reordering (drag by the grip) */
+.section-group.is-reordering { opacity: .45; }
+.section-group.drop-before { box-shadow: inset 0 3px 0 var(--accent); }
+.section-group.drop-after { box-shadow: inset 0 -3px 0 var(--accent); }
+
+/* ------------------------------------------------------- section form */
+
+.section-add { align-self: flex-start; }
+
+.section-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-sunk);
+}
+
+.section-form-name { width: 100%; }
+
+.section-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.section-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  transition: transform .1s ease, box-shadow .15s ease;
+}
+
+.section-swatch:hover { transform: scale(1.14); }
+
+.section-swatch.is-active {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.section-swatch-forest { background: #2f5a47; }
+.section-swatch-sage   { background: #7f9274; }
+.section-swatch-amber  { background: #b8862f; }
+.section-swatch-clay   { background: #b06a45; }
+.section-swatch-sky    { background: #4a7d99; }
+.section-swatch-violet { background: #7a68ad; }
+.section-swatch-rose   { background: #b25a76; }
+.section-swatch-slate  { background: #64707d; }
+
+.section-form-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
 }
 

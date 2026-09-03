@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import {
-  acknowledgeTaskSnooze, chatWithPercy, createGoalWithPercy, createPercyReminder, createSavedPercyAdvice,
-  createSpellingCorrection, createTask, createWeeklyGoal, deleteJournalEntry,
-  deletePercyReminder, deleteSavedPercyAdvice, deleteSpellingCorrection, disconnectGoogle, dismissLifeInsight,
+  acknowledgeTaskSnooze, addToCalendarNaturalLanguage, chatWithPercy, createGoalWithPercy, createPercyReminder, createSavedPercyAdvice,
+  createSection, createSpellingCorrection, createTask, createWeeklyGoal, deleteJournalEntry,
+  deletePercyReminder, deleteSavedPercyAdvice, deleteSection, deleteSpellingCorrection, disconnectGoogle, dismissLifeInsight,
   dismissPercyReminder, finishWeeklyPlanning, generateWeeklyReflection, getDailyPlan,
   getEntries, getGoogleAuthorizeUrl, getGoogleStatus, getLifeInsights, getNorthStar, getPercyReminders,
-  getSavedPercyAdvice, getSpellingCorrections, getTasks, getWeeklyGoals, getWeeklyPlanningSession,
-  markLifeInsightRead, processEntry, reorderGoals, reorderTasks, saveDailyPlan, saveNorthStar,
-  startWeeklyPlanning, updateGoal, updateJournalEntry, updateTask,
+  getSavedPercyAdvice, getSections, getSpellingCorrections, getTasks, getWeeklyGoals, getWeeklyPlanningSession,
+  markLifeInsightRead, processEntry, reorderGoals, reorderSections, reorderTasks, saveDailyPlan, saveNorthStar,
+  startWeeklyPlanning, updateGoal, updateJournalEntry, updateSection, updateTask,
   type DailyPlan, type Goal, type GoalUpdate, type GoogleStatus, type JournalEntry, type LifeInsight,
   type PercyChatMessage, type PercyReminder, type SavedPercyAdvice, type SpellingCorrection, type Task,
-  type TaskUpdate, type WeeklyPlanningSession,
+  type TaskSection, type TaskUpdate, type WeeklyPlanningSession,
 } from '../api'
 import { supabase } from '../supabase'
 import {
@@ -68,6 +68,7 @@ export function useJournalState() {
   // Journal data
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [sections, setSections] = useState<TaskSection[]>([])
   const [weeklyGoals, setWeeklyGoals] = useState<Goal[]>([])
   const [lastWeekGoals, setLastWeekGoals] = useState<Goal[]>([])
   const [percyReminders, setPercyReminders] = useState<PercyReminder[]>([])
@@ -117,13 +118,31 @@ export function useJournalState() {
   const [newTaskDraft, setNewTaskDraft] = useState('')
   const [newTaskStartTime, setNewTaskStartTime] = useState('')
   const [newTaskEndTime, setNewTaskEndTime] = useState('')
+  const [newTaskSectionId, setNewTaskSectionId] = useState('')
   const [addingTask, setAddingTask] = useState(false)
   const [taskFormOpen, setTaskFormOpen] = useState(false)
-  const [backlogOpen, setBacklogOpen] = useState(false)
   const [snoozedOpen, setSnoozedOpen] = useState(false)
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null)
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [taskDropTarget, setTaskDropTarget] = useState<{ id: string; position: 'before' | 'after' } | null>(null)
+
+  // Task sections
+  const [sectionFormOpen, setSectionFormOpen] = useState(false)
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
+  const [newSectionName, setNewSectionName] = useState('')
+  const [newSectionColor, setNewSectionColor] = useState('forest')
+  const [addingSection, setAddingSection] = useState(false)
+  const [sectionDropTarget, setSectionDropTarget] = useState<string | 'unsectioned' | null>(null)
+  const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null)
+  const [sectionReorderTarget, setSectionReorderTarget] = useState<{ id: string; position: 'before' | 'after' } | null>(null)
+  const [collapsedSectionIds, setCollapsedSectionIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('myjourn_collapsed_sections')
+      return saved ? (JSON.parse(saved) as string[]) : []
+    } catch {
+      return []
+    }
+  })
 
   // Goals
   const [newGoalDraft, setNewGoalDraft] = useState('')
@@ -146,6 +165,7 @@ export function useJournalState() {
   const [scheduleTarget, setScheduleTarget] = useState<ScheduleTarget | null>(null)
   const [savingSchedule, setSavingSchedule] = useState(false)
   const [connectingGoogle, setConnectingGoogle] = useState(false)
+  const [addingCalendarBatch, setAddingCalendarBatch] = useState(false)
 
   // Weekly planning
   const [weeklySession, setWeeklySession] = useState<WeeklyPlanningSession | null>(null)
@@ -283,10 +303,10 @@ export function useJournalState() {
     setLoading(true)
     try {
       const day = journalDay()
-      const [history, mission, insights, taskList, goals, corrections, reminders, plan, advice] = await Promise.all([
+      const [history, mission, insights, taskList, goals, corrections, reminders, plan, advice, sectionList] = await Promise.all([
         getEntries(id), getNorthStar(id), getLifeInsights(id), getTasks(id),
         getWeeklyGoals(id, weekStartOf(day)), getSpellingCorrections(id), getPercyReminders(id),
-        getDailyPlan(id, day), getSavedPercyAdvice(id),
+        getDailyPlan(id, day), getSavedPercyAdvice(id), getSections(id),
       ])
       setUserId(id)
       setEntries(history)
@@ -299,6 +319,7 @@ export function useJournalState() {
       setPercyReminders(reminders)
       setDailyPlan(plan)
       setSavedPercyAdvice(advice)
+      setSections(sectionList)
       setMorningSelectedIds(plan?.selected_task_ids ?? [])
       getGoogleStatus(id).then(setGoogleStatus).catch(() => {})
     } catch (reason: unknown) {
@@ -311,15 +332,16 @@ export function useJournalState() {
   async function refreshBackgroundState() {
     if (!userId) return
     try {
-      const [reminders, insights, goals, taskList, plan] = await Promise.all([
+      const [reminders, insights, goals, taskList, plan, sectionList] = await Promise.all([
         getPercyReminders(userId), getLifeInsights(userId), getWeeklyGoals(userId, weekStartOf(journalDay())),
-        getTasks(userId), getDailyPlan(userId, journalDay()),
+        getTasks(userId), getDailyPlan(userId, journalDay()), getSections(userId),
       ])
       setPercyReminders(reminders)
       setLifeInsights(insights)
       setWeeklyGoals(goals)
       setTasks(taskList)
       setDailyPlan(plan)
+      setSections(sectionList)
     } catch {
       // Best-effort background refresh; everything reappears on the next visit.
     }
@@ -465,6 +487,10 @@ export function useJournalState() {
   useEffect(() => {
     localStorage.setItem(THEME_KEY, themeMode)
   }, [themeMode])
+
+  useEffect(() => {
+    localStorage.setItem('myjourn_collapsed_sections', JSON.stringify(collapsedSectionIds))
+  }, [collapsedSectionIds])
 
   useEffect(() => {
     const root = document.documentElement
@@ -744,7 +770,7 @@ export function useJournalState() {
     setAddingTask(true)
     setError('')
     try {
-      const options: { remind_at?: string; duration_minutes?: number } = {}
+      const options: { remind_at?: string; duration_minutes?: number; section_id?: string } = {}
       if (newTaskStartTime) {
         options.remind_at = combineToRemindAt(todayIso, newTaskStartTime)
         if (newTaskEndTime) {
@@ -752,6 +778,8 @@ export function useJournalState() {
           if (duration != null) options.duration_minutes = duration
         }
       }
+      const sectionId = newTaskSectionId.trim()
+      if (sectionId) options.section_id = sectionId
       const task = await createTask(userId, clean, options)
       setTasks((current) => sortWorkingTasks([...current, task]))
       if (planEditing) {
@@ -760,6 +788,7 @@ export function useJournalState() {
       setNewTaskDraft('')
       setNewTaskStartTime('')
       setNewTaskEndTime('')
+      setNewTaskSectionId('')
       if (options.remind_at) {
         if (!googleStatus?.connected) {
           setNotice('Task saved — connect Google Calendar in Settings so timed tasks appear there.')
@@ -858,18 +887,26 @@ export function useJournalState() {
   function clearTaskDrag() {
     setDraggedTaskId(null)
     setTaskDropTarget(null)
+    setSectionDropTarget(null)
+    setSectionReorderTarget(null)
   }
 
   function handleTaskDragStart(event: DragEvent, taskId: string) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', taskId)
     setDraggedTaskId(taskId)
+    setDraggedSectionId(null)
     setTaskDropTarget(null)
+    setSectionDropTarget(null)
+    setSectionReorderTarget(null)
   }
 
   function handleTaskDragOver(event: DragEvent, taskId: string) {
     event.preventDefault()
+    event.stopPropagation()
     event.dataTransfer.dropEffect = 'move'
+    setSectionDropTarget(null)
+    setSectionReorderTarget(null)
     if (!draggedTaskId || draggedTaskId === taskId) {
       setTaskDropTarget(null)
       return
@@ -886,17 +923,26 @@ export function useJournalState() {
       clearTaskDrag()
       return
     }
-    const order = visibleTasks.map((task) => task.id)
-    const fromIndex = order.indexOf(draggedTaskId)
-    if (fromIndex === -1 || !order.includes(targetId)) {
+    const target = tasks.find((task) => task.id === targetId)
+    const dragged = tasks.find((task) => task.id === draggedTaskId)
+    if (!target || !dragged) {
       clearTaskDrag()
       return
     }
-    order.splice(fromIndex, 1)
-    let insertIndex = order.indexOf(targetId)
-    if (position === 'after') insertIndex += 1
-    order.splice(insertIndex, 0, draggedTaskId)
+    const sectionKey = target.section_id ?? null
+    // Tasks currently in the target's section (in display order), minus the dragged one.
+    const order = visibleTasks
+      .filter((task) => (task.section_id ?? null) === sectionKey && task.id !== draggedTaskId)
+      .map((task) => task.id)
+    const targetIndex = order.indexOf(targetId)
+    if (targetIndex === -1) {
+      clearTaskDrag()
+      return
+    }
+    order.splice(targetIndex + (position === 'after' ? 1 : 0), 0, draggedTaskId)
+    const movingSections = (dragged.section_id ?? null) !== sectionKey
     clearTaskDrag()
+
     const byId = new Map(tasks.map((task) => [task.id, task]))
     setTasks((current) => {
       const reordered = order.map((id) => byId.get(id)).filter((task): task is Task => Boolean(task))
@@ -904,6 +950,9 @@ export function useJournalState() {
       return [...reordered, ...rest]
     })
     try {
+      if (movingSections) {
+        await updateTask(userId, draggedTaskId, { section_id: sectionKey })
+      }
       const updated = await reorderTasks(userId, order)
       setTasks((current) => {
         const byUpdatedId = new Map(updated.map((task) => [task.id, task]))
@@ -911,6 +960,196 @@ export function useJournalState() {
       })
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to reorder your tasks.')
+    }
+  }
+
+  /* ---------------------------------------------------------- task sections */
+
+  function toggleSectionCollapsed(sectionId: string) {
+    setCollapsedSectionIds((current) => (
+      current.includes(sectionId)
+        ? current.filter((id) => id !== sectionId)
+        : [...current, sectionId]
+    ))
+  }
+
+  function openSectionForm() {
+    setSectionFormOpen(true)
+    setEditingSectionId(null)
+    setNewSectionName('')
+    setNewSectionColor('forest')
+  }
+
+  function startEditingSection(section: TaskSection) {
+    setEditingSectionId(section.id)
+    setSectionFormOpen(false)
+    setNewSectionName(section.name)
+    setNewSectionColor(section.color)
+  }
+
+  function cancelSectionEdit() {
+    setEditingSectionId(null)
+    setSectionFormOpen(false)
+    setNewSectionName('')
+  }
+
+  async function addSection(name: string, color: string) {
+    const clean = name.trim()
+    if (!userId || !clean || addingSection) return
+    setAddingSection(true)
+    setError('')
+    try {
+      const created = await createSection(userId, clean, color)
+      setSections((current) => [...current, created])
+      setNewSectionName('')
+      setSectionFormOpen(false)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to add that section.')
+    } finally {
+      setAddingSection(false)
+    }
+  }
+
+  async function saveSectionEdit(sectionId: string, name: string, color: string) {
+    const clean = name.trim()
+    if (!userId || !clean) return
+    setError('')
+    try {
+      const updated = await updateSection(userId, sectionId, {
+        name: clean,
+        color,
+      })
+      setSections((current) => current.map((section) => (section.id === sectionId ? updated : section)))
+      setEditingSectionId(null)
+      setNewSectionName('')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to update that section.')
+    }
+  }
+
+  async function removeSection(sectionId: string) {
+    if (!userId) return
+    setError('')
+    try {
+      await deleteSection(userId, sectionId)
+      setSections((current) => current.filter((section) => section.id !== sectionId))
+      // Tasks in the deleted section fall back to the unsectioned group.
+      setTasks((current) => current.map((task) => (
+        task.section_id === sectionId ? { ...task, section_id: null } : task
+      )))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to delete that section.')
+    }
+  }
+
+  function clearSectionReorderDrag() {
+    setDraggedSectionId(null)
+    setSectionReorderTarget(null)
+  }
+
+  function handleSectionReorderDragStart(event: DragEvent, sectionId: string) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', `section:${sectionId}`)
+    setDraggedSectionId(sectionId)
+    setDraggedTaskId(null)
+    setSectionReorderTarget(null)
+    setTaskDropTarget(null)
+    setSectionDropTarget(null)
+  }
+
+  function handleSectionDragOver(event: DragEvent, key: string | 'unsectioned') {
+    // Reordering a section: only real sections are valid drop targets.
+    if (draggedSectionId) {
+      if (key === 'unsectioned' || draggedSectionId === key) {
+        setSectionReorderTarget(null)
+        return
+      }
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      setTaskDropTarget(null)
+      setSectionDropTarget(null)
+      const rect = event.currentTarget.getBoundingClientRect()
+      const position = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+      setSectionReorderTarget((current) => (
+        current?.id === key && current.position === position ? current : { id: key, position }
+      ))
+      return
+    }
+    // Dropping a task into a section.
+    if (!draggedTaskId) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    setTaskDropTarget(null)
+    setSectionReorderTarget(null)
+    setSectionDropTarget((current) => (current === key ? current : key))
+  }
+
+  function handleSectionDrop(key: string | 'unsectioned') {
+    if (draggedSectionId) {
+      if (sectionReorderTarget && sectionReorderTarget.id === key) {
+        void handleSectionReorderDrop(key, sectionReorderTarget.position)
+      } else {
+        clearSectionReorderDrag()
+      }
+      return
+    }
+    if (!draggedTaskId || sectionDropTarget !== key) {
+      clearTaskDrag()
+      return
+    }
+    const taskId = draggedTaskId
+    const sectionId = key === 'unsectioned' ? null : key
+    clearTaskDrag()
+    void moveTaskToSection(taskId, sectionId)
+  }
+
+  async function handleSectionReorderDrop(targetId: string, position: 'before' | 'after') {
+    if (!userId || !draggedSectionId || draggedSectionId === targetId) {
+      clearSectionReorderDrag()
+      return
+    }
+    const order = sections.map((section) => section.id)
+    const fromIndex = order.indexOf(draggedSectionId)
+    if (fromIndex === -1 || !order.includes(targetId)) {
+      clearSectionReorderDrag()
+      return
+    }
+    order.splice(fromIndex, 1)
+    let insertIndex = order.indexOf(targetId)
+    if (position === 'after') insertIndex += 1
+    order.splice(insertIndex, 0, draggedSectionId)
+    clearSectionReorderDrag()
+
+    const byId = new Map(sections.map((section) => [section.id, section]))
+    setSections(order.map((id) => byId.get(id)).filter((section): section is TaskSection => Boolean(section)))
+    try {
+      const updated = await reorderSections(userId, order)
+      setSections(updated)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to reorder your sections.')
+      setSections(sections)
+    }
+  }
+
+  async function moveTaskToSection(taskId: string, sectionId: string | null) {
+    if (!userId) return
+    const task = tasks.find((item) => item.id === taskId)
+    if (!task || (task.section_id ?? null) === sectionId) return
+    try {
+      const updated = await patchTask(task, { section_id: sectionId })
+      if (!updated) return
+      // Keep the moved task at the end of its new section.
+      const sectionOrder = visibleTasks
+        .filter((item) => (item.section_id ?? null) === sectionId && item.id !== taskId)
+        .map((item) => item.id)
+      sectionOrder.push(taskId)
+      const reordered = await reorderTasks(userId, sectionOrder)
+      setTasks((current) => {
+        const byId = new Map(reordered.map((item) => [item.id, item]))
+        return current.map((item) => byId.get(item.id) ?? item)
+      })
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to move that task.')
     }
   }
 
@@ -1216,6 +1455,30 @@ export function useJournalState() {
       setError(reason instanceof Error ? reason.message : 'Unable to disconnect Google Calendar.')
     } finally {
       setConnectingGoogle(false)
+    }
+  }
+
+  async function addCalendarPrompt(promptText: string) {
+    const clean = promptText.trim()
+    if (!userId || !clean || addingCalendarBatch) return
+    setAddingCalendarBatch(true)
+    setError('')
+    try {
+      const res = await addToCalendarNaturalLanguage(userId, clean)
+      const refreshedTasks = await getTasks(userId)
+      setTasks(refreshedTasks)
+      if (res.google_connected) {
+        setNotice(res.summary_message || `Added ${res.created_tasks.length} reminders to Google Calendar.`)
+      } else {
+        setNotice(`${res.summary_message || `Added ${res.created_tasks.length} reminders.`} Connect Google Calendar in Settings or above to sync with Google.`)
+      }
+      refreshBackgroundState()
+      return res
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to add items to calendar.')
+      throw reason
+    } finally {
+      setAddingCalendarBatch(false)
     }
   }
 
@@ -1558,9 +1821,18 @@ export function useJournalState() {
 
     // tasks
     newTaskDraft, setNewTaskDraft, newTaskStartTime, setNewTaskStartTime, newTaskEndTime,
-    setNewTaskEndTime, addingTask, addManualTask, taskFormOpen, setTaskFormOpen, backlogOpen,
-    setBacklogOpen, snoozedOpen, setSnoozedOpen, updatingTaskId, patchTask, acknowledgeHighlight,
-    draggedTaskId, taskDropTarget, handleTaskDragStart, handleTaskDragOver, handleTaskDrop, clearTaskDrag,
+    setNewTaskEndTime, newTaskSectionId, setNewTaskSectionId, addingTask, addManualTask,
+    taskFormOpen, setTaskFormOpen, snoozedOpen, setSnoozedOpen, updatingTaskId, patchTask,
+    acknowledgeHighlight, draggedTaskId, taskDropTarget, handleTaskDragStart, handleTaskDragOver,
+    handleTaskDrop, clearTaskDrag,
+
+    // task sections
+    sections, sectionFormOpen, setSectionFormOpen, openSectionForm, editingSectionId,
+    startEditingSection, cancelSectionEdit, newSectionName, setNewSectionName, newSectionColor,
+    setNewSectionColor, addingSection, addSection, saveSectionEdit, removeSection,
+    collapsedSectionIds, toggleSectionCollapsed, sectionDropTarget, handleSectionDragOver,
+    handleSectionDrop, moveTaskToSection, draggedSectionId, sectionReorderTarget,
+    handleSectionReorderDragStart, handleSectionReorderDrop, clearSectionReorderDrag,
 
     // goals
     newGoalDraft, setNewGoalDraft, newGoalTargetCount, setNewGoalTargetCount, addingGoal, addWeeklyGoal,
@@ -1576,6 +1848,7 @@ export function useJournalState() {
     // scheduling
     scheduleTarget, setScheduleTarget, savingSchedule, saveScheduleModal, clearScheduleModal,
     openScheduleModal, openSnoozeModal, connectGoogle, disconnectGoogleAccount, connectingGoogle,
+    addingCalendarBatch, addCalendarPrompt,
 
     // weekly
     weeklySession, weeklySessionChecked, weeklyLoading, startingWeeklyPlanning, beginStartWeeklyPlanning,

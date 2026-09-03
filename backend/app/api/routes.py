@@ -27,15 +27,19 @@ from app.models import (
     PercyReminder,
     SavedPercyAdvice,
     SpellingCorrection,
+    TaskSection,
     User,
     WeeklyPlanningSession,
 )
 from app.rls import bind_user_rls
 from app.schemas import (
     AcknowledgeSnoozeRequest,
+    AddToCalendarRequest,
+    AddToCalendarResponse,
     CreateGoalRequest,
     CreatePercyReminderRequest,
     CreateSavedPercyAdviceRequest,
+    CreateSectionRequest,
     CreateSpellingCorrectionRequest,
     CreateTaskRequest,
     DailyPlanResponse,
@@ -54,13 +58,16 @@ from app.schemas import (
     ProcessJournalRequest,
     ProcessJournalResponse,
     ReorderGoalsRequest,
+    ReorderSectionsRequest,
     ReorderTasksRequest,
     SavedPercyAdviceResponse,
+    SectionResponse,
     SpellingCorrectionResponse,
     StartWeeklyPlanningRequest,
     TaskResponse,
     UpdateGoalRequest,
     UpdateJournalEntryRequest,
+    UpdateSectionRequest,
     UpdateTaskRequest,
     UpsertDailyPlanRequest,
     UserResponse,
@@ -71,7 +78,10 @@ from app.services import google_calendar
 from app.services.daily_processing import DailyProcessingService
 from app.services.percy_chat import chat_with_percy
 from app.services.percy_goal import create_goal_with_percy
-from app.services.schedule_parsing import parse_natural_language_item
+from app.services.schedule_parsing import (
+    parse_natural_language_calendar_batch,
+    parse_natural_language_item,
+)
 from app.services.spelling import (
     delete_spelling_correction,
     get_user_spelling_corrections,
@@ -313,6 +323,36 @@ def _get_owned_task(session: Session, task_id: str, user_id: str) -> OpenLoopAnd
     return task
 
 
+def _list_sections(session: Session, user_id: str) -> list[TaskSection]:
+    return list(
+        session.scalars(
+            select(TaskSection)
+            .where(TaskSection.user_id == user_id)
+            .order_by(TaskSection.sort_order, TaskSection.created_at)
+        )
+    )
+
+
+def _get_owned_section(session: Session, section_id: str, user_id: str) -> TaskSection:
+    section = session.get(TaskSection, section_id)
+    if section is None or section.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Section not found")
+    return section
+
+
+def _resolve_section_id(
+    session: Session, user_id: str, section_id: str | None
+) -> str | None:
+    """Validate a client-supplied section id, returning None for the unsectioned state."""
+
+    if section_id is None:
+        return None
+    section = session.get(TaskSection, section_id)
+    if section is None or section.user_id != user_id:
+        raise HTTPException(status_code=422, detail="Invalid section id")
+    return section_id
+
+
 def _sync_or_clear_calendar(
     session: Session,
     settings: Settings,
@@ -371,6 +411,8 @@ def create_task(
     if not clean_text:
         raise HTTPException(status_code=422, detail="goal_text must not be empty")
 
+    section_id = _resolve_section_id(session, current_user_id, payload.section_id)
+
     remind_at = payload.remind_at
     snoozed_until = payload.snoozed_until
     target_count = 1
@@ -413,6 +455,7 @@ def create_task(
         current_count=0,
         remind_at=remind_at,
         snoozed_until=snoozed_until,
+        section_id=section_id,
     )
     session.add(task)
     session.commit()
@@ -475,6 +518,9 @@ def update_task(
         task.snoozed_until = payload.snoozed_until
         task.snooze_seen = False
 
+    if "section_id" in fields_set:
+        task.section_id = _resolve_section_id(session, current_user_id, payload.section_id)
+
     if schedule_changed and task.status == GoalStatus.PENDING:
         _sync_or_clear_calendar(
             session,
@@ -524,6 +570,124 @@ def reorder_tasks(
             by_id[task_id].sort_order = index + 1
     session.commit()
     return _list_tasks(session, current_user_id)
+
+
+# ---------------------------------------------------------------------------
+# Task sections (color-coded groupings, e.g. classes)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/users/{user_id}/sections", response_model=list[SectionResponse])
+def list_sections(
+    user_id: str,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> list[TaskSection]:
+    return _list_sections(session, current_user_id)
+
+
+@router.post(
+    "/users/{user_id}/sections",
+    response_model=SectionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_section(
+    user_id: str,
+    payload: CreateSectionRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> TaskSection:
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="name must not be empty")
+
+    next_sort_order = (
+        session.scalar(
+            select(func.max(TaskSection.sort_order)).where(
+                TaskSection.user_id == current_user_id
+            )
+        )
+        or 0
+    ) + 1
+
+    section = TaskSection(
+        user_id=current_user_id,
+        name=name,
+        color=payload.color or "forest",
+        sort_order=next_sort_order,
+    )
+    session.add(section)
+    session.commit()
+    session.refresh(section)
+    return section
+
+
+@router.patch("/sections/{section_id}", response_model=SectionResponse)
+def update_section(
+    section_id: str,
+    payload: UpdateSectionRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> TaskSection:
+    section = _get_owned_section(session, section_id, current_user_id)
+
+    if "name" in payload.model_fields_set and payload.name is not None:
+        clean_name = payload.name.strip()
+        if not clean_name:
+            raise HTTPException(status_code=422, detail="name must not be empty")
+        section.name = clean_name
+    if "color" in payload.model_fields_set and payload.color is not None:
+        section.color = payload.color
+
+    session.commit()
+    session.refresh(section)
+    return section
+
+
+@router.delete("/sections/{section_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_section(
+    section_id: str,
+    payload: UserScopedRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> Response:
+    section = _get_owned_section(session, section_id, current_user_id)
+    # Detach tasks from the section (they fall back to the unsectioned group).
+    for task in session.scalars(
+        select(OpenLoopAndGoal).where(
+            OpenLoopAndGoal.user_id == current_user_id,
+            OpenLoopAndGoal.kind == GoalKind.TASK,
+            OpenLoopAndGoal.section_id == section_id,
+        )
+    ):
+        task.section_id = None
+    session.delete(section)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/users/{user_id}/sections/reorder", response_model=list[SectionResponse])
+def reorder_sections(
+    user_id: str,
+    payload: ReorderSectionsRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> list[TaskSection]:
+    ordered_ids = list(dict.fromkeys(payload.ordered_ids))
+    sections = list(
+        session.scalars(
+            select(TaskSection).where(
+                TaskSection.user_id == current_user_id,
+                TaskSection.id.in_(ordered_ids),
+            )
+        )
+    )
+    by_id = {section.id: section for section in sections}
+    for index, section_id in enumerate(ordered_ids):
+        if section_id in by_id:
+            by_id[section_id].sort_order = index + 1
+    session.commit()
+    return _list_sections(session, current_user_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1076,6 +1240,88 @@ def google_disconnect(
         item.calendar_event_id = None
     session.commit()
     return GoogleStatusResponse(connected=False, email=None)
+
+
+@router.post(
+    "/users/{user_id}/calendar/add-natural-language",
+    response_model=AddToCalendarResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_to_calendar_natural_language(
+    user_id: str,
+    payload: AddToCalendarRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+    ai: AIClient,
+    settings: AppSettings,
+) -> AddToCalendarResponse:
+    user = session.get(User, current_user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    prompt_text = payload.prompt.strip()
+    if not prompt_text:
+        raise HTTPException(status_code=422, detail="prompt must not be empty")
+
+    items, summary_message = parse_natural_language_calendar_batch(
+        prompt_text,
+        base_date=date.today(),
+        ai=ai,
+        settings=settings,
+    )
+
+    if not items:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not extract any scheduled calendar reminders from that text.",
+        )
+
+    next_sort = (
+        session.scalar(
+            select(func.max(OpenLoopAndGoal.sort_order)).where(
+                OpenLoopAndGoal.user_id == current_user_id,
+                OpenLoopAndGoal.kind == GoalKind.TASK,
+            )
+        )
+        or 0
+    )
+
+    created_tasks_with_dur: list[tuple[OpenLoopAndGoal, int]] = []
+    for title, remind_at, duration in items:
+        next_sort += 1
+        task = OpenLoopAndGoal(
+            user_id=current_user_id,
+            goal_text=title,
+            status=GoalStatus.PENDING,
+            kind=GoalKind.TASK,
+            sort_order=next_sort,
+            target_count=1,
+            current_count=0,
+            remind_at=remind_at,
+        )
+        session.add(task)
+        created_tasks_with_dur.append((task, duration))
+
+    session.commit()
+
+    if user.google_connected:
+        for task, duration in created_tasks_with_dur:
+            try:
+                google_calendar.sync_task_event(
+                    settings, user, task, duration_minutes=duration
+                )
+            except Exception:
+                logger.warning("Could not sync task %s to Google Calendar", task.id, exc_info=True)
+        session.commit()
+
+    for task, _ in created_tasks_with_dur:
+        session.refresh(task)
+
+    return AddToCalendarResponse(
+        summary_message=summary_message,
+        created_tasks=[TaskResponse.model_validate(t) for t, _ in created_tasks_with_dur],
+        google_connected=user.google_connected,
+    )
 
 
 # ---------------------------------------------------------------------------

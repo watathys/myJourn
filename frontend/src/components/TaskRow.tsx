@@ -34,7 +34,8 @@ export function TaskRow({ task, draggable = false, selectMode = false, selected 
       onDragStart={draggable ? (event) => handleTaskDragStart(event, task.id) : undefined}
       onDragOver={draggable ? (event) => handleTaskDragOver(event, task.id) : undefined}
       onDragEnd={draggable ? clearTaskDrag : undefined}
-      onDrop={draggable ? () => {
+      onDrop={draggable ? (event) => {
+        event.stopPropagation()
         if (!taskDropTarget || taskDropTarget.id !== task.id) return
         void handleTaskDrop(task.id, taskDropTarget.position)
       } : undefined}

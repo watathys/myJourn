@@ -2,19 +2,22 @@ import { AlarmClock, ChevronDown, ChevronUp, ListChecks, Plus, RotateCcw, X } fr
 import { formatDate } from '../lib/day'
 import { useJournal } from '../state/journalContext'
 import { Card, EmptyNote } from './ui/Card'
+import { SectionForm } from './SectionForm'
 import { TaskForm } from './TaskForm'
 import { TaskRow } from './TaskRow'
+import { TaskSection } from './TaskSection'
 
 export function TaskCard() {
   const {
     dayState, visibleTasks, plannedTasks, backlogTasks, snoozedTasks, morningSelectedIds,
-    taskFormOpen, setTaskFormOpen, backlogOpen, setBacklogOpen, snoozedOpen, setSnoozedOpen, patchTask,
+    taskFormOpen, setTaskFormOpen, snoozedOpen, setSnoozedOpen, patchTask,
+    sections, sectionFormOpen, setSectionFormOpen, openSectionForm, addingSection, addSection,
   } = useJournal()
 
   const selecting = dayState === 'plan'
   const showFocus = !selecting && plannedTasks.length > 0
-  const listedTasks = selecting ? visibleTasks : backlogTasks
-  const backlogExpanded = backlogOpen || !showFocus
+  const sectionSource = selecting ? visibleTasks : backlogTasks
+  const unsectionedTasks = sectionSource.filter((task) => !task.section_id)
 
   return (
     <Card
@@ -45,37 +48,36 @@ export function TaskCard() {
         </div>
       )}
 
-      {listedTasks.length > 0 ? (
-        <div className="task-group">
-          {showFocus && (
-            <button
-              className="group-toggle"
-              onClick={() => setBacklogOpen(!backlogOpen)}
-              aria-expanded={backlogExpanded}
-            >
-              <span>Also working on ({listedTasks.length})</span>
-              {backlogExpanded ? <ChevronUp /> : <ChevronDown />}
-            </button>
-          )}
-          {backlogExpanded && (
-            <ul className="rows">
-              {listedTasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  draggable={!selecting}
-                  selectMode={selecting}
-                  selected={morningSelectedIds.includes(task.id)}
-                />
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : !showFocus && (
+      {sections.map((section) => (
+        <TaskSection
+          key={section.id}
+          section={section}
+          tasks={sectionSource.filter((task) => task.section_id === section.id)}
+        />
+      ))}
+
+      {(unsectionedTasks.length > 0 || sections.length === 0) && (
+        <TaskSection section={null} tasks={unsectionedTasks} />
+      )}
+
+      {visibleTasks.length === 0 && (
         <EmptyNote>
           Nothing here yet. Add a task above, or just write an entry — tasks you mention get picked up
           automatically.
         </EmptyNote>
+      )}
+
+      {sectionFormOpen ? (
+        <SectionForm
+          submitLabel="Create"
+          busy={addingSection}
+          onSubmit={(name, color) => void addSection(name, color)}
+          onCancel={() => setSectionFormOpen(false)}
+        />
+      ) : (
+        <button className="text-button section-add" onClick={openSectionForm}>
+          <Plus /> New section
+        </button>
       )}
 
       {snoozedTasks.length > 0 && (
