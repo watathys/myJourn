@@ -25,17 +25,10 @@ const DRAFT_DATE_KEY = 'myjourn_entry_date'
 const VERBATIM_KEY = 'myjourn_save_verbatim'
 const THEME_KEY = 'myjourn_theme_mode'
 
-const CACHE_KEYS = {
-  ENTRIES: 'myjourn_cache_entries',
-  TASKS: 'myjourn_cache_tasks',
-  SECTIONS: 'myjourn_cache_sections',
-  WEEKLY_GOALS: 'myjourn_cache_weekly_goals',
-  PERCY_REMINDERS: 'myjourn_cache_percy_reminders',
-  LIFE_INSIGHTS: 'myjourn_cache_life_insights',
-  SAVED_PERCY_ADVICE: 'myjourn_cache_saved_percy_advice',
-  SPELLING_CORRECTIONS: 'myjourn_cache_spelling_corrections',
-  DAILY_PLAN: 'myjourn_cache_daily_plan',
-  NORTH_STAR: 'myjourn_cache_north_star',
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  return 'Unable to connect to server'
 }
 
 function getCached<T>(key: string, fallback: T): T {
@@ -89,13 +82,7 @@ export function useJournalState() {
   const [sessionUser, setSessionUser] = useState<{ id: string; email?: string } | null>(null)
   const [authChecking, setAuthChecking] = useState(true)
   const [userId, setUserId] = useState('')
-  const [loading, setLoading] = useState(() => {
-    const cachedTasks = getCached<Task[]>(CACHE_KEYS.TASKS, [])
-    const cachedPlan = getCached<DailyPlan | null>(CACHE_KEYS.DAILY_PLAN, null)
-    const cachedSections = getCached<TaskSection[]>(CACHE_KEYS.SECTIONS, [])
-    const cachedEntries = getCached<JournalEntry[]>(CACHE_KEYS.ENTRIES, [])
-    return cachedTasks.length === 0 && !cachedPlan && cachedSections.length === 0 && cachedEntries.length === 0
-  })
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -105,19 +92,19 @@ export function useJournalState() {
   const [composerOpen, setComposerOpen] = useState(false)
   const [activeEntry, setActiveEntry] = useState<JournalEntry | null>(null)
 
-  // Journal data with LocalStorage cache hydration
-  const [entries, setEntries] = useState<JournalEntry[]>(() => getCached(CACHE_KEYS.ENTRIES, []))
-  const [tasks, setTasks] = useState<Task[]>(() => getCached(CACHE_KEYS.TASKS, []))
-  const [sections, setSections] = useState<TaskSection[]>(() => getCached(CACHE_KEYS.SECTIONS, []))
-  const [weeklyGoals, setWeeklyGoals] = useState<Goal[]>(() => getCached(CACHE_KEYS.WEEKLY_GOALS, []))
+  // Journal data
+  const [entries, setEntries] = useState<JournalEntry[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [sections, setSections] = useState<TaskSection[]>([])
+  const [weeklyGoals, setWeeklyGoals] = useState<Goal[]>([])
   const [lastWeekGoals, setLastWeekGoals] = useState<Goal[]>([])
-  const [percyReminders, setPercyReminders] = useState<PercyReminder[]>(() => getCached(CACHE_KEYS.PERCY_REMINDERS, []))
-  const [lifeInsights, setLifeInsights] = useState<LifeInsight[]>(() => getCached(CACHE_KEYS.LIFE_INSIGHTS, []))
-  const [savedPercyAdvice, setSavedPercyAdvice] = useState<SavedPercyAdvice[]>(() => getCached(CACHE_KEYS.SAVED_PERCY_ADVICE, []))
-  const [spellingCorrections, setSpellingCorrections] = useState<SpellingCorrection[]>(() => getCached(CACHE_KEYS.SPELLING_CORRECTIONS, []))
-  const [dailyPlan, setDailyPlan] = useState<DailyPlan | null>(() => getCached(CACHE_KEYS.DAILY_PLAN, null))
-  const [northStar, setNorthStar] = useState(() => getCached(CACHE_KEYS.NORTH_STAR, ''))
-  const [savedNorthStar, setSavedNorthStar] = useState(() => getCached(CACHE_KEYS.NORTH_STAR, ''))
+  const [percyReminders, setPercyReminders] = useState<PercyReminder[]>([])
+  const [lifeInsights, setLifeInsights] = useState<LifeInsight[]>([])
+  const [savedPercyAdvice, setSavedPercyAdvice] = useState<SavedPercyAdvice[]>([])
+  const [spellingCorrections, setSpellingCorrections] = useState<SpellingCorrection[]>([])
+  const [dailyPlan, setDailyPlan] = useState<DailyPlan | null>(null)
+  const [northStar, setNorthStar] = useState('')
+  const [savedNorthStar, setSavedNorthStar] = useState('')
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null)
 
   // Theme
@@ -149,10 +136,7 @@ export function useJournalState() {
 
   // Day panel
   const [clockMs, setClockMs] = useState(() => Date.now())
-  const [morningSelectedIds, setMorningSelectedIds] = useState<string[]>(() => {
-    const cachedPlan = getCached<DailyPlan | null>(CACHE_KEYS.DAILY_PLAN, null)
-    return cachedPlan?.selected_task_ids ?? []
-  })
+  const [morningSelectedIds, setMorningSelectedIds] = useState<string[]>([])
   const [savingMorningPlan, setSavingMorningPlan] = useState(false)
   const [planEditing, setPlanEditing] = useState(false)
   const [dayPanelCollapsed, setDayPanelCollapsed] = useState(false)
@@ -343,11 +327,37 @@ export function useJournalState() {
   const loadUserData = async (id: string, force = false) => {
     if (!force && lastLoadedUserIdRef.current === id) return
     lastLoadedUserIdRef.current = id
+    setUserId(id)
 
-    const hasCachedData = Boolean(
-      tasks.length > 0 || dailyPlan !== null || sections.length > 0 || entries.length > 0
+    // Hydrate user-scoped cache if current state is empty
+    const cachedTasks = getCached<Task[]>(`myjourn_cache_${id}_tasks`, [])
+    const cachedEntries = getCached<JournalEntry[]>(`myjourn_cache_${id}_entries`, [])
+    const cachedSections = getCached<TaskSection[]>(`myjourn_cache_${id}_sections`, [])
+    const cachedPlan = getCached<DailyPlan | null>(`myjourn_cache_${id}_daily_plan`, null)
+    const cachedGoals = getCached<Goal[]>(`myjourn_cache_${id}_weekly_goals`, [])
+    const cachedNorthStar = getCached<string>(`myjourn_cache_${id}_north_star`, '')
+
+    if (tasks.length === 0 && cachedTasks.length > 0) setTasks(cachedTasks)
+    if (entries.length === 0 && cachedEntries.length > 0) setEntries(cachedEntries)
+    if (sections.length === 0 && cachedSections.length > 0) setSections(cachedSections)
+    if (!dailyPlan && cachedPlan) {
+      setDailyPlan(cachedPlan)
+      setMorningSelectedIds(cachedPlan.selected_task_ids ?? [])
+    }
+    if (weeklyGoals.length === 0 && cachedGoals.length > 0) setWeeklyGoals(cachedGoals)
+    if (!northStar && cachedNorthStar) {
+      setNorthStar(cachedNorthStar)
+      setSavedNorthStar(cachedNorthStar)
+    }
+
+    const hasData = Boolean(
+      tasks.length > 0 || cachedTasks.length > 0 ||
+      dailyPlan !== null || cachedPlan !== null ||
+      sections.length > 0 || cachedSections.length > 0 ||
+      entries.length > 0 || cachedEntries.length > 0
     )
-    if (!hasCachedData) {
+
+    if (!hasData) {
       setLoading(true)
     }
 
@@ -379,39 +389,49 @@ export function useJournalState() {
         sectionsRes,
       ] = results
 
-      setUserId(id)
+      const errors: string[] = []
 
-      if (historyRes.status === 'fulfilled') setEntries(historyRes.value)
+      if (historyRes.status === 'fulfilled') {
+        setEntries(historyRes.value)
+      } else {
+        errors.push(`Journal Entries: ${getErrorMessage(historyRes.reason)}`)
+      }
+
       if (missionRes.status === 'fulfilled') {
         setNorthStar(missionRes.value)
         setSavedNorthStar(missionRes.value)
       }
+
       if (insightsRes.status === 'fulfilled') setLifeInsights(insightsRes.value)
-      if (taskListRes.status === 'fulfilled') setTasks(taskListRes.value)
+
+      if (taskListRes.status === 'fulfilled') {
+        setTasks(taskListRes.value)
+      } else {
+        errors.push(`Tasks: ${getErrorMessage(taskListRes.reason)}`)
+      }
+
       if (goalsRes.status === 'fulfilled') setWeeklyGoals(goalsRes.value)
       if (correctionsRes.status === 'fulfilled') setSpellingCorrections(correctionsRes.value)
       if (remindersRes.status === 'fulfilled') setPercyReminders(remindersRes.value)
+
       if (planRes.status === 'fulfilled') {
         setDailyPlan(planRes.value)
         setMorningSelectedIds(planRes.value?.selected_task_ids ?? [])
       }
+
       if (adviceRes.status === 'fulfilled') setSavedPercyAdvice(adviceRes.value)
       if (sectionsRes.status === 'fulfilled') setSections(sectionsRes.value)
 
       getGoogleStatus(id).then(setGoogleStatus).catch(() => {})
 
-      // If all queries failed and we had no cache, show error to user
-      const allFailed = results.every((r) => r.status === 'rejected')
-      if (allFailed && !hasCachedData) {
-        const firstErr = (results[0] as PromiseRejectedResult).reason
-        setError(firstErr instanceof Error ? firstErr.message : 'Unable to connect to server.')
-      } else {
-        // Clear stale load error if revalidation or cache was successful
+      if (errors.length > 0 && !hasData) {
+        setError(errors[0])
+      } else if (results.every((r) => r.status === 'fulfilled')) {
         setError('')
       }
     } catch (reason: unknown) {
-      if (!hasCachedData) {
-        setError(reason instanceof Error ? reason.message : 'Unable to connect to server.')
+      if (!hasData) {
+        setError(getErrorMessage(reason))
       }
     } finally {
       setLoading(false)
@@ -447,9 +467,12 @@ export function useJournalState() {
       if (!mounted) return
       if (session?.user) {
         setSessionUser({ id: session.user.id, email: session.user.email })
+        setUserId(session.user.id)
         loadUserData(session.user.id)
       } else {
         setSessionUser(null)
+        setUserId('')
+        setLoading(false)
       }
       setAuthChecking(false)
     })
@@ -458,11 +481,13 @@ export function useJournalState() {
       if (!mounted) return
       if (session?.user) {
         setSessionUser({ id: session.user.id, email: session.user.email })
+        setUserId(session.user.id)
         loadUserData(session.user.id)
       } else {
         setSessionUser(null)
         setUserId('')
         lastLoadedUserIdRef.current = null
+        setLoading(false)
       }
       setAuthChecking(false)
     })
@@ -585,17 +610,13 @@ export function useJournalState() {
     localStorage.setItem('myjourn_collapsed_sections', JSON.stringify(collapsedSectionIds))
   }, [collapsedSectionIds])
 
-  // Sync data state to LocalStorage cache
-  useEffect(() => { setCached(CACHE_KEYS.ENTRIES, entries) }, [entries])
-  useEffect(() => { setCached(CACHE_KEYS.TASKS, tasks) }, [tasks])
-  useEffect(() => { setCached(CACHE_KEYS.SECTIONS, sections) }, [sections])
-  useEffect(() => { setCached(CACHE_KEYS.WEEKLY_GOALS, weeklyGoals) }, [weeklyGoals])
-  useEffect(() => { setCached(CACHE_KEYS.PERCY_REMINDERS, percyReminders) }, [percyReminders])
-  useEffect(() => { setCached(CACHE_KEYS.LIFE_INSIGHTS, lifeInsights) }, [lifeInsights])
-  useEffect(() => { setCached(CACHE_KEYS.SAVED_PERCY_ADVICE, savedPercyAdvice) }, [savedPercyAdvice])
-  useEffect(() => { setCached(CACHE_KEYS.SPELLING_CORRECTIONS, spellingCorrections) }, [spellingCorrections])
-  useEffect(() => { setCached(CACHE_KEYS.DAILY_PLAN, dailyPlan) }, [dailyPlan])
-  useEffect(() => { setCached(CACHE_KEYS.NORTH_STAR, northStar) }, [northStar])
+  // Sync data state to LocalStorage cache (user-scoped)
+  useEffect(() => { if (userId && entries.length > 0) setCached(`myjourn_cache_${userId}_entries`, entries) }, [userId, entries])
+  useEffect(() => { if (userId && tasks.length > 0) setCached(`myjourn_cache_${userId}_tasks`, tasks) }, [userId, tasks])
+  useEffect(() => { if (userId && sections.length > 0) setCached(`myjourn_cache_${userId}_sections`, sections) }, [userId, sections])
+  useEffect(() => { if (userId && weeklyGoals.length > 0) setCached(`myjourn_cache_${userId}_weekly_goals`, weeklyGoals) }, [userId, weeklyGoals])
+  useEffect(() => { if (userId && dailyPlan) setCached(`myjourn_cache_${userId}_daily_plan`, dailyPlan) }, [userId, dailyPlan])
+  useEffect(() => { if (userId && northStar) setCached(`myjourn_cache_${userId}_north_star`, northStar) }, [userId, northStar])
 
   useEffect(() => {
     const root = document.documentElement
@@ -1893,13 +1914,22 @@ export function useJournalState() {
   }
 
   function signOut() {
-    Object.values(CACHE_KEYS).forEach((key) => {
-      try {
-        localStorage.removeItem(key)
-      } catch {
-        // Ignore
-      }
-    })
+    if (userId) {
+      localStorage.removeItem(`myjourn_cache_${userId}_entries`)
+      localStorage.removeItem(`myjourn_cache_${userId}_tasks`)
+      localStorage.removeItem(`myjourn_cache_${userId}_sections`)
+      localStorage.removeItem(`myjourn_cache_${userId}_weekly_goals`)
+      localStorage.removeItem(`myjourn_cache_${userId}_daily_plan`)
+      localStorage.removeItem(`myjourn_cache_${userId}_north_star`)
+    }
+    lastLoadedUserIdRef.current = null
+    setUserId('')
+    setEntries([])
+    setTasks([])
+    setSections([])
+    setDailyPlan(null)
+    setWeeklyGoals([])
+    setNorthStar('')
     supabase.auth.signOut()
   }
 
