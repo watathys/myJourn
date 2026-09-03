@@ -25,6 +25,40 @@ const DRAFT_DATE_KEY = 'myjourn_entry_date'
 const VERBATIM_KEY = 'myjourn_save_verbatim'
 const THEME_KEY = 'myjourn_theme_mode'
 
+const CACHE_KEYS = {
+  ENTRIES: 'myjourn_cache_entries',
+  TASKS: 'myjourn_cache_tasks',
+  SECTIONS: 'myjourn_cache_sections',
+  WEEKLY_GOALS: 'myjourn_cache_weekly_goals',
+  PERCY_REMINDERS: 'myjourn_cache_percy_reminders',
+  LIFE_INSIGHTS: 'myjourn_cache_life_insights',
+  SAVED_PERCY_ADVICE: 'myjourn_cache_saved_percy_advice',
+  SPELLING_CORRECTIONS: 'myjourn_cache_spelling_corrections',
+  DAILY_PLAN: 'myjourn_cache_daily_plan',
+  NORTH_STAR: 'myjourn_cache_north_star',
+}
+
+function getCached<T>(key: string, fallback: T): T {
+  try {
+    const item = localStorage.getItem(key)
+    return item ? (JSON.parse(item) as T) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function setCached<T>(key: string, value: T): void {
+  try {
+    if (value === null || value === undefined) {
+      localStorage.removeItem(key)
+    } else {
+      localStorage.setItem(key, JSON.stringify(value))
+    }
+  } catch {
+    // Ignore quota or private storage errors
+  }
+}
+
 export type PanelId = 'journal' | 'weekly' | 'percy' | 'settings'
 export type PageId = 'home' | 'write'
 export type ThemeMode = 'auto' | 'light' | 'dark'
@@ -55,7 +89,13 @@ export function useJournalState() {
   const [sessionUser, setSessionUser] = useState<{ id: string; email?: string } | null>(null)
   const [authChecking, setAuthChecking] = useState(true)
   const [userId, setUserId] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => {
+    const cachedTasks = getCached<Task[]>(CACHE_KEYS.TASKS, [])
+    const cachedPlan = getCached<DailyPlan | null>(CACHE_KEYS.DAILY_PLAN, null)
+    const cachedSections = getCached<TaskSection[]>(CACHE_KEYS.SECTIONS, [])
+    const cachedEntries = getCached<JournalEntry[]>(CACHE_KEYS.ENTRIES, [])
+    return cachedTasks.length === 0 && !cachedPlan && cachedSections.length === 0 && cachedEntries.length === 0
+  })
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -65,19 +105,19 @@ export function useJournalState() {
   const [composerOpen, setComposerOpen] = useState(false)
   const [activeEntry, setActiveEntry] = useState<JournalEntry | null>(null)
 
-  // Journal data
-  const [entries, setEntries] = useState<JournalEntry[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [sections, setSections] = useState<TaskSection[]>([])
-  const [weeklyGoals, setWeeklyGoals] = useState<Goal[]>([])
+  // Journal data with LocalStorage cache hydration
+  const [entries, setEntries] = useState<JournalEntry[]>(() => getCached(CACHE_KEYS.ENTRIES, []))
+  const [tasks, setTasks] = useState<Task[]>(() => getCached(CACHE_KEYS.TASKS, []))
+  const [sections, setSections] = useState<TaskSection[]>(() => getCached(CACHE_KEYS.SECTIONS, []))
+  const [weeklyGoals, setWeeklyGoals] = useState<Goal[]>(() => getCached(CACHE_KEYS.WEEKLY_GOALS, []))
   const [lastWeekGoals, setLastWeekGoals] = useState<Goal[]>([])
-  const [percyReminders, setPercyReminders] = useState<PercyReminder[]>([])
-  const [lifeInsights, setLifeInsights] = useState<LifeInsight[]>([])
-  const [savedPercyAdvice, setSavedPercyAdvice] = useState<SavedPercyAdvice[]>([])
-  const [spellingCorrections, setSpellingCorrections] = useState<SpellingCorrection[]>([])
-  const [dailyPlan, setDailyPlan] = useState<DailyPlan | null>(null)
-  const [northStar, setNorthStar] = useState('')
-  const [savedNorthStar, setSavedNorthStar] = useState('')
+  const [percyReminders, setPercyReminders] = useState<PercyReminder[]>(() => getCached(CACHE_KEYS.PERCY_REMINDERS, []))
+  const [lifeInsights, setLifeInsights] = useState<LifeInsight[]>(() => getCached(CACHE_KEYS.LIFE_INSIGHTS, []))
+  const [savedPercyAdvice, setSavedPercyAdvice] = useState<SavedPercyAdvice[]>(() => getCached(CACHE_KEYS.SAVED_PERCY_ADVICE, []))
+  const [spellingCorrections, setSpellingCorrections] = useState<SpellingCorrection[]>(() => getCached(CACHE_KEYS.SPELLING_CORRECTIONS, []))
+  const [dailyPlan, setDailyPlan] = useState<DailyPlan | null>(() => getCached(CACHE_KEYS.DAILY_PLAN, null))
+  const [northStar, setNorthStar] = useState(() => getCached(CACHE_KEYS.NORTH_STAR, ''))
+  const [savedNorthStar, setSavedNorthStar] = useState(() => getCached(CACHE_KEYS.NORTH_STAR, ''))
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null)
 
   // Theme
@@ -109,7 +149,10 @@ export function useJournalState() {
 
   // Day panel
   const [clockMs, setClockMs] = useState(() => Date.now())
-  const [morningSelectedIds, setMorningSelectedIds] = useState<string[]>([])
+  const [morningSelectedIds, setMorningSelectedIds] = useState<string[]>(() => {
+    const cachedPlan = getCached<DailyPlan | null>(CACHE_KEYS.DAILY_PLAN, null)
+    return cachedPlan?.selected_task_ids ?? []
+  })
   const [savingMorningPlan, setSavingMorningPlan] = useState(false)
   const [planEditing, setPlanEditing] = useState(false)
   const [dayPanelCollapsed, setDayPanelCollapsed] = useState(false)
@@ -300,30 +343,76 @@ export function useJournalState() {
   const loadUserData = async (id: string, force = false) => {
     if (!force && lastLoadedUserIdRef.current === id) return
     lastLoadedUserIdRef.current = id
-    setLoading(true)
+
+    const hasCachedData = Boolean(
+      tasks.length > 0 || dailyPlan !== null || sections.length > 0 || entries.length > 0
+    )
+    if (!hasCachedData) {
+      setLoading(true)
+    }
+
     try {
       const day = journalDay()
-      const [history, mission, insights, taskList, goals, corrections, reminders, plan, advice, sectionList] = await Promise.all([
-        getEntries(id), getNorthStar(id), getLifeInsights(id), getTasks(id),
-        getWeeklyGoals(id, weekStartOf(day)), getSpellingCorrections(id), getPercyReminders(id),
-        getDailyPlan(id, day), getSavedPercyAdvice(id), getSections(id),
+      const results = await Promise.allSettled([
+        getEntries(id),
+        getNorthStar(id),
+        getLifeInsights(id),
+        getTasks(id),
+        getWeeklyGoals(id, weekStartOf(day)),
+        getSpellingCorrections(id),
+        getPercyReminders(id),
+        getDailyPlan(id, day),
+        getSavedPercyAdvice(id),
+        getSections(id),
       ])
+
+      const [
+        historyRes,
+        missionRes,
+        insightsRes,
+        taskListRes,
+        goalsRes,
+        correctionsRes,
+        remindersRes,
+        planRes,
+        adviceRes,
+        sectionsRes,
+      ] = results
+
       setUserId(id)
-      setEntries(history)
-      setNorthStar(mission)
-      setSavedNorthStar(mission)
-      setLifeInsights(insights)
-      setTasks(taskList)
-      setWeeklyGoals(goals)
-      setSpellingCorrections(corrections)
-      setPercyReminders(reminders)
-      setDailyPlan(plan)
-      setSavedPercyAdvice(advice)
-      setSections(sectionList)
-      setMorningSelectedIds(plan?.selected_task_ids ?? [])
+
+      if (historyRes.status === 'fulfilled') setEntries(historyRes.value)
+      if (missionRes.status === 'fulfilled') {
+        setNorthStar(missionRes.value)
+        setSavedNorthStar(missionRes.value)
+      }
+      if (insightsRes.status === 'fulfilled') setLifeInsights(insightsRes.value)
+      if (taskListRes.status === 'fulfilled') setTasks(taskListRes.value)
+      if (goalsRes.status === 'fulfilled') setWeeklyGoals(goalsRes.value)
+      if (correctionsRes.status === 'fulfilled') setSpellingCorrections(correctionsRes.value)
+      if (remindersRes.status === 'fulfilled') setPercyReminders(remindersRes.value)
+      if (planRes.status === 'fulfilled') {
+        setDailyPlan(planRes.value)
+        setMorningSelectedIds(planRes.value?.selected_task_ids ?? [])
+      }
+      if (adviceRes.status === 'fulfilled') setSavedPercyAdvice(adviceRes.value)
+      if (sectionsRes.status === 'fulfilled') setSections(sectionsRes.value)
+
       getGoogleStatus(id).then(setGoogleStatus).catch(() => {})
+
+      // If all queries failed and we had no cache, show error to user
+      const allFailed = results.every((r) => r.status === 'rejected')
+      if (allFailed && !hasCachedData) {
+        const firstErr = (results[0] as PromiseRejectedResult).reason
+        setError(firstErr instanceof Error ? firstErr.message : 'Unable to connect to server.')
+      } else {
+        // Clear stale load error if revalidation or cache was successful
+        setError('')
+      }
     } catch (reason: unknown) {
-      setError((reason as Error).message)
+      if (!hasCachedData) {
+        setError(reason instanceof Error ? reason.message : 'Unable to connect to server.')
+      }
     } finally {
       setLoading(false)
     }
@@ -332,16 +421,20 @@ export function useJournalState() {
   async function refreshBackgroundState() {
     if (!userId) return
     try {
-      const [reminders, insights, goals, taskList, plan, sectionList] = await Promise.all([
-        getPercyReminders(userId), getLifeInsights(userId), getWeeklyGoals(userId, weekStartOf(journalDay())),
-        getTasks(userId), getDailyPlan(userId, journalDay()), getSections(userId),
+      const results = await Promise.allSettled([
+        getPercyReminders(userId),
+        getLifeInsights(userId),
+        getWeeklyGoals(userId, weekStartOf(journalDay())),
+        getTasks(userId),
+        getDailyPlan(userId, journalDay()),
+        getSections(userId),
       ])
-      setPercyReminders(reminders)
-      setLifeInsights(insights)
-      setWeeklyGoals(goals)
-      setTasks(taskList)
-      setDailyPlan(plan)
-      setSections(sectionList)
+      if (results[0].status === 'fulfilled') setPercyReminders(results[0].value)
+      if (results[1].status === 'fulfilled') setLifeInsights(results[1].value)
+      if (results[2].status === 'fulfilled') setWeeklyGoals(results[2].value)
+      if (results[3].status === 'fulfilled') setTasks(results[3].value)
+      if (results[4].status === 'fulfilled') setDailyPlan(results[4].value)
+      if (results[5].status === 'fulfilled') setSections(results[5].value)
     } catch {
       // Best-effort background refresh; everything reappears on the next visit.
     }
@@ -491,6 +584,18 @@ export function useJournalState() {
   useEffect(() => {
     localStorage.setItem('myjourn_collapsed_sections', JSON.stringify(collapsedSectionIds))
   }, [collapsedSectionIds])
+
+  // Sync data state to LocalStorage cache
+  useEffect(() => { setCached(CACHE_KEYS.ENTRIES, entries) }, [entries])
+  useEffect(() => { setCached(CACHE_KEYS.TASKS, tasks) }, [tasks])
+  useEffect(() => { setCached(CACHE_KEYS.SECTIONS, sections) }, [sections])
+  useEffect(() => { setCached(CACHE_KEYS.WEEKLY_GOALS, weeklyGoals) }, [weeklyGoals])
+  useEffect(() => { setCached(CACHE_KEYS.PERCY_REMINDERS, percyReminders) }, [percyReminders])
+  useEffect(() => { setCached(CACHE_KEYS.LIFE_INSIGHTS, lifeInsights) }, [lifeInsights])
+  useEffect(() => { setCached(CACHE_KEYS.SAVED_PERCY_ADVICE, savedPercyAdvice) }, [savedPercyAdvice])
+  useEffect(() => { setCached(CACHE_KEYS.SPELLING_CORRECTIONS, spellingCorrections) }, [spellingCorrections])
+  useEffect(() => { setCached(CACHE_KEYS.DAILY_PLAN, dailyPlan) }, [dailyPlan])
+  useEffect(() => { setCached(CACHE_KEYS.NORTH_STAR, northStar) }, [northStar])
 
   useEffect(() => {
     const root = document.documentElement
@@ -1788,6 +1893,13 @@ export function useJournalState() {
   }
 
   function signOut() {
+    Object.values(CACHE_KEYS).forEach((key) => {
+      try {
+        localStorage.removeItem(key)
+      } catch {
+        // Ignore
+      }
+    })
     supabase.auth.signOut()
   }
 
