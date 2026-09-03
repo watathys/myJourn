@@ -113,6 +113,35 @@ export type GoogleStatus = {
   email: string | null
 }
 
+const NETWORK_RETRY_DELAYS_MS = [500, 1500, 4000]
+
+/**
+ * Retries transport-level failures only. A hosted backend that has idled can
+ * drop the first connections while it cold-starts, which surfaces as a bare
+ * `TypeError: Failed to fetch` with no response to inspect. Only reads are
+ * retried: a write may have been applied server-side even though the response
+ * never arrived, so replaying it risks duplicating the change.
+ */
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  const retryable = method === 'GET' || method === 'HEAD'
+  let lastError: unknown
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await fetch(url, init)
+    } catch (error) {
+      lastError = error
+      const delay = retryable ? NETWORK_RETRY_DELAYS_MS[attempt] : undefined
+      if (delay === undefined) break
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+  }
+
+  const detail = lastError instanceof Error ? ` (${lastError.message})` : ''
+  throw new Error(`Could not reach the server. It may be waking up — try again in a moment.${detail}`)
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
@@ -137,7 +166,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     apiBase = `${apiBase}/api`
   }
 
-  const response = await fetch(`${apiBase}${path}`, {
+  const response = await fetchWithRetry(`${apiBase}${path}`, {
     ...init,
     headers,
   })

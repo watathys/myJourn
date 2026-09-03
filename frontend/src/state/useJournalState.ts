@@ -31,6 +31,29 @@ function getErrorMessage(err: unknown): string {
   return 'Unable to connect to server'
 }
 
+const CACHE_SUFFIXES = ['entries', 'tasks', 'sections', 'weekly_goals', 'daily_plan', 'north_star']
+
+const cacheKey = (userId: string, suffix: string) => `myjourn_cache_${userId}_${suffix}`
+
+/**
+ * Cache keys used to be global; they are now scoped per user. Without this the
+ * previously cached entries and tasks are stranded under the old names and the
+ * UI comes up empty for anyone who was already signed in.
+ */
+function migrateLegacyCache(userId: string): void {
+  for (const suffix of CACHE_SUFFIXES) {
+    try {
+      const legacy = localStorage.getItem(`myjourn_cache_${suffix}`)
+      if (legacy !== null && localStorage.getItem(cacheKey(userId, suffix)) === null) {
+        localStorage.setItem(cacheKey(userId, suffix), legacy)
+      }
+      localStorage.removeItem(`myjourn_cache_${suffix}`)
+    } catch {
+      // Ignore quota or private storage errors
+    }
+  }
+}
+
 function getCached<T>(key: string, fallback: T): T {
   try {
     const item = localStorage.getItem(key)
@@ -328,14 +351,15 @@ export function useJournalState() {
     if (!force && lastLoadedUserIdRef.current === id) return
     lastLoadedUserIdRef.current = id
     setUserId(id)
+    migrateLegacyCache(id)
 
     // Hydrate user-scoped cache if current state is empty
-    const cachedTasks = getCached<Task[]>(`myjourn_cache_${id}_tasks`, [])
-    const cachedEntries = getCached<JournalEntry[]>(`myjourn_cache_${id}_entries`, [])
-    const cachedSections = getCached<TaskSection[]>(`myjourn_cache_${id}_sections`, [])
-    const cachedPlan = getCached<DailyPlan | null>(`myjourn_cache_${id}_daily_plan`, null)
-    const cachedGoals = getCached<Goal[]>(`myjourn_cache_${id}_weekly_goals`, [])
-    const cachedNorthStar = getCached<string>(`myjourn_cache_${id}_north_star`, '')
+    const cachedTasks = getCached<Task[]>(cacheKey(id, 'tasks'), [])
+    const cachedEntries = getCached<JournalEntry[]>(cacheKey(id, 'entries'), [])
+    const cachedSections = getCached<TaskSection[]>(cacheKey(id, 'sections'), [])
+    const cachedPlan = getCached<DailyPlan | null>(cacheKey(id, 'daily_plan'), null)
+    const cachedGoals = getCached<Goal[]>(cacheKey(id, 'weekly_goals'), [])
+    const cachedNorthStar = getCached<string>(cacheKey(id, 'north_star'), '')
 
     if (tasks.length === 0 && cachedTasks.length > 0) setTasks(cachedTasks)
     if (entries.length === 0 && cachedEntries.length > 0) setEntries(cachedEntries)
@@ -611,12 +635,12 @@ export function useJournalState() {
   }, [collapsedSectionIds])
 
   // Sync data state to LocalStorage cache (user-scoped)
-  useEffect(() => { if (userId && entries.length > 0) setCached(`myjourn_cache_${userId}_entries`, entries) }, [userId, entries])
-  useEffect(() => { if (userId && tasks.length > 0) setCached(`myjourn_cache_${userId}_tasks`, tasks) }, [userId, tasks])
-  useEffect(() => { if (userId && sections.length > 0) setCached(`myjourn_cache_${userId}_sections`, sections) }, [userId, sections])
-  useEffect(() => { if (userId && weeklyGoals.length > 0) setCached(`myjourn_cache_${userId}_weekly_goals`, weeklyGoals) }, [userId, weeklyGoals])
-  useEffect(() => { if (userId && dailyPlan) setCached(`myjourn_cache_${userId}_daily_plan`, dailyPlan) }, [userId, dailyPlan])
-  useEffect(() => { if (userId && northStar) setCached(`myjourn_cache_${userId}_north_star`, northStar) }, [userId, northStar])
+  useEffect(() => { if (userId && entries.length > 0) setCached(cacheKey(userId, 'entries'), entries) }, [userId, entries])
+  useEffect(() => { if (userId && tasks.length > 0) setCached(cacheKey(userId, 'tasks'), tasks) }, [userId, tasks])
+  useEffect(() => { if (userId && sections.length > 0) setCached(cacheKey(userId, 'sections'), sections) }, [userId, sections])
+  useEffect(() => { if (userId && weeklyGoals.length > 0) setCached(cacheKey(userId, 'weekly_goals'), weeklyGoals) }, [userId, weeklyGoals])
+  useEffect(() => { if (userId && dailyPlan) setCached(cacheKey(userId, 'daily_plan'), dailyPlan) }, [userId, dailyPlan])
+  useEffect(() => { if (userId && northStar) setCached(cacheKey(userId, 'north_star'), northStar) }, [userId, northStar])
 
   useEffect(() => {
     const root = document.documentElement
@@ -1915,12 +1939,13 @@ export function useJournalState() {
 
   function signOut() {
     if (userId) {
-      localStorage.removeItem(`myjourn_cache_${userId}_entries`)
-      localStorage.removeItem(`myjourn_cache_${userId}_tasks`)
-      localStorage.removeItem(`myjourn_cache_${userId}_sections`)
-      localStorage.removeItem(`myjourn_cache_${userId}_weekly_goals`)
-      localStorage.removeItem(`myjourn_cache_${userId}_daily_plan`)
-      localStorage.removeItem(`myjourn_cache_${userId}_north_star`)
+      for (const suffix of CACHE_SUFFIXES) {
+        try {
+          localStorage.removeItem(cacheKey(userId, suffix))
+        } catch {
+          // Ignore
+        }
+      }
     }
     lastLoadedUserIdRef.current = null
     setUserId('')
