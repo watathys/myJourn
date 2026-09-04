@@ -2,7 +2,7 @@
 
 import socket
 from collections.abc import Generator
-from typing import Any
+from typing import Any, Optional
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -10,9 +10,26 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from app.config import get_settings
 from app.rls import apply_rls_settings, register_rls_listeners
 
-KNOWN_HOSTADDR_FALLBACKS = {
-    "aws-0-ca-central-1.pooler.supabase.com": "15.156.180.136",
-}
+
+def _preferred_hostaddr(host: str) -> Optional[str]:
+    """Resolve ``host`` to a literal address, preferring IPv4.
+
+    ``socket.gethostbyname`` was used here previously, which is IPv4-only and
+    raises for AAAA-only hosts. ``getaddrinfo`` handles both, and preferring an
+    A record matters because hosts without an outbound IPv6 route cannot reach
+    an IPv6 literal even when one resolves.
+    """
+
+    try:
+        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except OSError:
+        return None
+
+    for family in (socket.AF_INET, socket.AF_INET6):
+        for info in infos:
+            if info[0] == family:
+                return str(info[4][0])
+    return None
 
 
 class Base(DeclarativeBase):
@@ -37,16 +54,15 @@ engine = create_engine(
 
 @event.listens_for(engine, "do_connect")
 def _resolve_hostaddr(dialect: Any, conn_rec: Any, cargs: Any, cparams: dict[str, Any]) -> None:
-    """Resolve Postgres host to IPv4 to prevent macOS libpq DNS resolution failures."""
+    """Pin the Postgres host to a literal address; macOS libpq DNS is flaky."""
 
     host = cparams.get("host")
     if host and not cparams.get("hostaddr") and not host.startswith("/") and host != "localhost":
-        try:
-            cparams["hostaddr"] = socket.gethostbyname(host)
-        except Exception:
-            fallback = KNOWN_HOSTADDR_FALLBACKS.get(host)
-            if fallback:
-                cparams["hostaddr"] = fallback
+        # Leave hostaddr unset when resolution fails so libpq can retry itself,
+        # rather than pinning a hardcoded address that may since have moved.
+        resolved = _preferred_hostaddr(host)
+        if resolved:
+            cparams["hostaddr"] = resolved
 
 
 @event.listens_for(engine, "connect")
