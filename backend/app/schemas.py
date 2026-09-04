@@ -239,7 +239,7 @@ class AddToCalendarRequest(BaseModel):
 
 class AddToCalendarResponse(BaseModel):
     summary_message: str
-    created_tasks: list[TaskResponse]
+    created_count: int = 0
     google_connected: bool
 
 

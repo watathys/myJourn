@@ -39,13 +39,14 @@ to FastAPI. Run frontend checks with `npm run build` and `npm run lint`.
 - `MYJOURN_OPENAI_API_KEY` enables journal processing.
 - `MYJOURN_OPENAI_MODEL` selects the structured-output-capable model.
 - `MYJOURN_GOOGLE_CLIENT_ID` / `MYJOURN_GOOGLE_CLIENT_SECRET` enable the
-  "Connect Google Calendar" flow. Without them, scheduled reminders still work
-  inside the app but won't create calendar events / phone notifications.
+  "Connect Google Calendar" flow. "Add to Calendar" requires a connected
+  calendar and creates real Google events (never tasks). Timed tasks/goals
+  mirror to the connected calendar for phone notifications; without Google
+  they are saved in the app but create no calendar events.
 - `MYJOURN_GOOGLE_REDIRECT_URI` must exactly match an "Authorized redirect URI"
-  configured on the Google OAuth client (defaults to the local backend at
-  `http://127.0.0.1:8000/api/auth/google/callback`).
+  configured on the Google OAuth client (e.g. `https://genfm.app/api/auth/google/callback` in production, or `http://127.0.0.1:8000/api/auth/google/callback` for local development).
 - `MYJOURN_GOOGLE_POST_AUTH_REDIRECT` is where the browser is sent back to
-  after the Google consent screen (defaults to the local Vite dev server).
+  after the Google consent screen (e.g. `https://genfm.app/` in production, or `http://localhost:5173/` for local development).
 - `MYJOURN_GOOGLE_CALENDAR_ID` selects which calendar events are created on
   (defaults to `primary`).
 
@@ -58,7 +59,7 @@ to FastAPI. Run frontend checks with `npm run build` and `npm run lint`.
    `email` scopes.
 4. Under **APIs & Services → Credentials**, create an **OAuth client ID** of
    type "Web application". Add an authorized redirect URI matching
-   `MYJOURN_GOOGLE_REDIRECT_URI` (e.g. `http://127.0.0.1:8000/api/auth/google/callback`).
+   `MYJOURN_GOOGLE_REDIRECT_URI` (e.g. `https://genfm.app/api/auth/google/callback`).
 5. Copy the generated client ID/secret into `MYJOURN_GOOGLE_CLIENT_ID` and
    `MYJOURN_GOOGLE_CLIENT_SECRET` in `.env`.
 6. Restart the backend, then use "Connect Google Calendar" on the North Star

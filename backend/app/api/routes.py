@@ -404,37 +404,21 @@ def create_task(
     payload: CreateTaskRequest,
     current_user_id: CurrentUserId,
     session: DbSession,
-    ai: AIClient,
     settings: AppSettings,
 ) -> OpenLoopAndGoal:
+    """Add a task verbatim.
+
+    Tasks are never sent through AI natural-language parsing: the title is
+    stored exactly as typed. A calendar event is only created when the client
+    explicitly supplies a ``remind_at`` (e.g. the Start/End time pickers).
+    """
     clean_text = payload.goal_text.strip()
     if not clean_text:
         raise HTTPException(status_code=422, detail="goal_text must not be empty")
 
     section_id = _resolve_section_id(session, current_user_id, payload.section_id)
 
-    remind_at = payload.remind_at
-    snoozed_until = payload.snoozed_until
-    target_count = 1
-    is_daily = False
     duration = payload.duration_minutes or google_calendar.EVENT_DURATION_MINUTES
-
-    if remind_at is None:
-        parsed_title, parsed_remind_at, parsed_target_cnt, is_daily, parsed_duration = parse_natural_language_item(
-            clean_text,
-            base_date=date.today(),
-            ai=ai,
-            settings=settings,
-            item_type="task",
-        )
-        if parsed_remind_at is not None:
-            clean_text = parsed_title
-            remind_at = parsed_remind_at
-            target_count = parsed_target_cnt
-            if payload.duration_minutes is None:
-                duration = parsed_duration
-        else:
-            clean_text = parsed_title
 
     next_sort_order = (
         session.scalar(
@@ -451,17 +435,17 @@ def create_task(
         status=GoalStatus.PENDING,
         kind=GoalKind.TASK,
         sort_order=next_sort_order,
-        target_count=target_count,
+        target_count=1,
         current_count=0,
-        remind_at=remind_at,
-        snoozed_until=snoozed_until,
+        remind_at=payload.remind_at,
+        snoozed_until=payload.snoozed_until,
         section_id=section_id,
     )
     session.add(task)
     session.commit()
     session.refresh(task)
 
-    if remind_at is not None:
+    if task.remind_at is not None:
         user = session.get(User, current_user_id)
         if user and user.google_connected:
             try:
@@ -470,7 +454,6 @@ def create_task(
                     user,
                     task,
                     duration_minutes=duration,
-                    is_daily_recurring=is_daily,
                 )
                 session.commit()
                 session.refresh(task)
@@ -1255,6 +1238,11 @@ def add_to_calendar_natural_language(
     ai: AIClient,
     settings: AppSettings,
 ) -> AddToCalendarResponse:
+    """Turn plain-English scheduling into Google Calendar events only.
+
+    Adding to the calendar never creates a task in the "What I'm Working On"
+    list: the parsed reminders go straight to Google Calendar and nowhere else.
+    """
     user = session.get(User, current_user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -1262,6 +1250,12 @@ def add_to_calendar_natural_language(
     prompt_text = payload.prompt.strip()
     if not prompt_text:
         raise HTTPException(status_code=422, detail="prompt must not be empty")
+
+    if not user.google_connected:
+        raise HTTPException(
+            status_code=400,
+            detail="Connect Google Calendar first — adding to the calendar creates events there.",
+        )
 
     items, summary_message = parse_natural_language_calendar_batch(
         prompt_text,
@@ -1276,51 +1270,20 @@ def add_to_calendar_natural_language(
             detail="Could not extract any scheduled calendar reminders from that text.",
         )
 
-    next_sort = (
-        session.scalar(
-            select(func.max(OpenLoopAndGoal.sort_order)).where(
-                OpenLoopAndGoal.user_id == current_user_id,
-                OpenLoopAndGoal.kind == GoalKind.TASK,
-            )
+    created = google_calendar.insert_calendar_events(settings, user, items)
+    if created == 0:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Could not add reminders to Google Calendar. "
+                "Reconnect Google Calendar in Settings and try again."
+            ),
         )
-        or 0
-    )
-
-    created_tasks_with_dur: list[tuple[OpenLoopAndGoal, int]] = []
-    for title, remind_at, duration in items:
-        next_sort += 1
-        task = OpenLoopAndGoal(
-            user_id=current_user_id,
-            goal_text=title,
-            status=GoalStatus.PENDING,
-            kind=GoalKind.TASK,
-            sort_order=next_sort,
-            target_count=1,
-            current_count=0,
-            remind_at=remind_at,
-        )
-        session.add(task)
-        created_tasks_with_dur.append((task, duration))
-
-    session.commit()
-
-    if user.google_connected:
-        for task, duration in created_tasks_with_dur:
-            try:
-                google_calendar.sync_task_event(
-                    settings, user, task, duration_minutes=duration
-                )
-            except Exception:
-                logger.warning("Could not sync task %s to Google Calendar", task.id, exc_info=True)
-        session.commit()
-
-    for task, _ in created_tasks_with_dur:
-        session.refresh(task)
 
     return AddToCalendarResponse(
         summary_message=summary_message,
-        created_tasks=[TaskResponse.model_validate(t) for t, _ in created_tasks_with_dur],
-        google_connected=user.google_connected,
+        created_count=created,
+        google_connected=True,
     )
 
 

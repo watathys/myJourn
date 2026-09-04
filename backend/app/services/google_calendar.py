@@ -168,6 +168,48 @@ def _get_calendar_timezone(service, settings: Settings) -> str:
         return "UTC"
 
 
+def _build_event_body(
+    *,
+    summary: str,
+    remind_at: datetime,
+    duration_minutes: int,
+    time_zone: str,
+    kind_label: str,
+    recurrence_rrule: Optional[str] = None,
+) -> dict:
+    """Build the Google Calendar event payload for a MyJourn reminder.
+
+    ``remind_at`` is stored as a local wall-clock time labeled UTC/Z. Strip any
+    tzinfo and send the clock face with the calendar's timezone so Google does
+    not shift the hour the user picked.
+    """
+    start = remind_at.replace(tzinfo=None) if remind_at.tzinfo else remind_at
+    start_str = start.strftime("%Y-%m-%dT%H:%M:%S")
+    end_str = (start + timedelta(minutes=duration_minutes)).strftime("%Y-%m-%dT%H:%M:%S")
+
+    body: dict = {
+        "summary": summary[:250],
+        "description": f"Reminder from MyJourn — {kind_label}.",
+        "start": {
+            "dateTime": start_str,
+            "timeZone": time_zone,
+        },
+        "end": {
+            "dateTime": end_str,
+            "timeZone": time_zone,
+        },
+        "reminders": {
+            "useDefault": False,
+            "overrides": [{"method": "popup", "minutes": 0}],
+        },
+    }
+
+    if recurrence_rrule:
+        body["recurrence"] = [recurrence_rrule]
+
+    return body
+
+
 def sync_task_event(
     settings: Settings,
     user: User,
@@ -194,36 +236,22 @@ def sync_task_event(
             task.calendar_event_id = None
         return
 
-    # remind_at is stored as a local wall-clock time labeled UTC/Z. Strip any
-    # tzinfo and send the clock face with the calendar's timezone so Google
-    # does not shift the hour the user picked.
-    start = task.remind_at.replace(tzinfo=None) if task.remind_at.tzinfo else task.remind_at
     time_zone = _get_calendar_timezone(service, settings)
-    start_str = start.strftime("%Y-%m-%dT%H:%M:%S")
-    end_str = (start + timedelta(minutes=duration_minutes)).strftime("%Y-%m-%dT%H:%M:%S")
 
     kind_label = "Goal" if task.kind == GoalKind.GOAL else "What I'm Working On"
-
-    body: dict = {
-        "summary": task.goal_text[:250],
-        "description": f"Reminder from MyJourn — {kind_label}.",
-        "start": {
-            "dateTime": start_str,
-            "timeZone": time_zone,
-        },
-        "end": {
-            "dateTime": end_str,
-            "timeZone": time_zone,
-        },
-        "reminders": {
-            "useDefault": False,
-            "overrides": [{"method": "popup", "minutes": 0}],
-        },
-    }
-
+    recurrence_rrule = None
     if is_daily_recurring:
         count = max(1, task.target_count or 1)
-        body["recurrence"] = [f"RRULE:FREQ=DAILY;COUNT={count}"]
+        recurrence_rrule = f"RRULE:FREQ=DAILY;COUNT={count}"
+
+    body = _build_event_body(
+        summary=task.goal_text,
+        remind_at=task.remind_at,
+        duration_minutes=duration_minutes,
+        time_zone=time_zone,
+        kind_label=kind_label,
+        recurrence_rrule=recurrence_rrule,
+    )
 
     try:
         if task.calendar_event_id:
@@ -250,6 +278,48 @@ def sync_task_event(
             sync_task_event(settings, user, task)
             return
         raise GoogleCalendarError(str(exc)) from exc
+
+
+def insert_calendar_events(
+    settings: Settings,
+    user: User,
+    items: list[tuple[str, datetime, int]],
+) -> int:
+    """Insert standalone Google Calendar events with no backing MyJourn row.
+
+    Each item is a ``(summary, remind_at, duration_minutes)`` tuple parsed from
+    an "Add to Calendar" prompt. Only real Google Calendar events are created —
+    nothing is written to the task list and no ``calendar_event_id`` is stored.
+
+    Insertion is best-effort per item; failures are logged and skipped. Returns
+    the number of events successfully created. Raises
+    ``GoogleCalendarNotConfigured`` when the user has not connected Google.
+    """
+    if not user.google_connected:
+        raise GoogleCalendarNotConfigured("This user has not connected Google Calendar.")
+
+    service = _calendar_client(settings, user)
+    time_zone = _get_calendar_timezone(service, settings)
+
+    created = 0
+    for summary, remind_at, duration_minutes in items:
+        try:
+            body = _build_event_body(
+                summary=summary,
+                remind_at=remind_at,
+                duration_minutes=duration_minutes,
+                time_zone=time_zone,
+                kind_label="Calendar event",
+            )
+            service.events().insert(
+                calendarId=settings.google_calendar_id, body=body
+            ).execute()
+            created += 1
+        except (GoogleCalendarError, HttpError) as exc:
+            logger.warning(
+                "Could not insert calendar event %r: %s", summary, exc
+            )
+    return created
 
 
 def delete_task_event(settings: Settings, user: User, task: OpenLoopAndGoal) -> None:

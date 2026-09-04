@@ -102,6 +102,24 @@ def test_manually_add_task(client: TestClient, session: Session) -> None:
     assert data["target_count"] == 1
 
 
+def test_add_task_is_stored_verbatim_without_ai(client: TestClient, session: Session) -> None:
+    user = User()
+    session.add(user)
+    session.commit()
+
+    # No AI dependency override and no network here: task creation must be a
+    # plain DB insert. Natural-language text is stored exactly as typed and is
+    # never turned into a reminder, target count, or calendar event.
+    text = "Remind me at 4 pm to take creatine today"
+    resp = client.post(f"/api/users/{user.id}/tasks", json={"goal_text": text})
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["goal_text"] == text
+    assert data["remind_at"] is None
+    assert data["target_count"] == 1
+    assert data["has_calendar_reminder"] is False
+
+
 def test_percy_chat_endpoint(client: TestClient, session: Session) -> None:
     user = User()
     session.add(user)

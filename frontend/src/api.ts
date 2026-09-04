@@ -557,7 +557,7 @@ export function addToCalendarNaturalLanguage(
   prompt: string,
 ): Promise<{
   summary_message: string
-  created_tasks: Task[]
+  created_count: number
   google_connected: boolean
 }> {
   return request(`/users/${userId}/calendar/add-natural-language`, {

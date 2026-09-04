@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarPlus, Check, Link2, Sparkles } from 'lucide-react'
+import { CalendarPlus, Check, Link2 } from 'lucide-react'
 import { useJournal } from '../state/journalContext'
 import { Card } from './ui/Card'
 
@@ -23,8 +23,6 @@ export function CalendarAddCard() {
       // Error is displayed via error toast in useJournal
     }
   }
-
-  const examplePrompt = "remind me friday, saturday, sunday, and monday, at 8am, 12pm, 4pm, and 8pm to take creatine"
 
   return (
     <Card
@@ -67,16 +65,6 @@ export function CalendarAddCard() {
             aria-label="Calendar reminder prompt"
           />
           <div className="calendar-add-actions">
-            <button
-              className="text-button"
-              onClick={() => {
-                setPromptInput(examplePrompt)
-                if (lastSummary) setLastSummary('')
-              }}
-              type="button"
-            >
-              <Sparkles /> Use example
-            </button>
             <button
               className="primary-button"
               disabled={!promptInput.trim() || addingCalendarBatch}

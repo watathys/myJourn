@@ -75,7 +75,7 @@ def test_parse_natural_language_calendar_batch_with_ai() -> None:
     assert items[1][1] == datetime(2026, 9, 5, 9, 0, tzinfo=timezone.utc)
 
 
-def test_add_to_calendar_route_creates_tasks_and_syncs_google(
+def test_add_to_calendar_route_creates_events_only_no_tasks(
     client: TestClient, session: Session
 ) -> None:
     user = User(
@@ -86,9 +86,22 @@ def test_add_to_calendar_route_creates_tasks_and_syncs_google(
     session.add(user)
     session.commit()
 
-    prompt = "remind me friday, saturday, sunday, and monday, at 8am, 12pm, 4pm, and 8pm to take creatine"
+    prompt = (
+        "remind me friday, saturday, sunday, and monday, at 8am, 12pm, 4pm, "
+        "and 8pm to take creatine"
+    )
+    parsed_items = [
+        ("Take creatine", datetime(2026, 9, 4, 8, 0, tzinfo=timezone.utc), 15),
+        ("Take creatine", datetime(2026, 9, 4, 12, 0, tzinfo=timezone.utc), 15),
+    ]
 
-    with patch("app.services.google_calendar.sync_task_event") as mock_sync:
+    with patch(
+        "app.api.routes.parse_natural_language_calendar_batch",
+        return_value=(parsed_items, "Added 2 reminders to take creatine."),
+    ), patch(
+        "app.services.google_calendar.insert_calendar_events",
+        return_value=len(parsed_items),
+    ) as mock_insert:
         res = client.post(
             f"/api/users/{user.id}/calendar/add-natural-language",
             json={"user_id": user.id, "prompt": prompt},
@@ -96,16 +109,26 @@ def test_add_to_calendar_route_creates_tasks_and_syncs_google(
 
     assert res.status_code == 201
     body = res.json()
-    assert len(body["created_tasks"]) == 16
+    assert body["created_count"] == 2
     assert body["google_connected"] is True
-    assert "creatine" in body["summary_message"].lower() or "added" in body["summary_message"].lower()
+    assert "creatine" in body["summary_message"].lower()
 
-    # Check tasks created in DB
-    db_tasks = session.query(OpenLoopAndGoal).filter_by(user_id=user.id).all()
-    assert len(db_tasks) == 16
-    for t in db_tasks:
-        assert "creatine" in t.goal_text.lower()
-        assert t.remind_at is not None
+    # The reminders went straight to Google Calendar; no task rows were created.
+    assert session.query(OpenLoopAndGoal).filter_by(user_id=user.id).count() == 0
+    mock_insert.assert_called_once()
 
-    # Sync was called for each task
-    assert mock_sync.call_count == 16
+
+def test_add_to_calendar_requires_google_connection(client: TestClient, session: Session) -> None:
+    user = User()  # not connected to Google
+    session.add(user)
+    session.commit()
+
+    with patch("app.api.routes.parse_natural_language_calendar_batch") as mock_parse:
+        res = client.post(
+            f"/api/users/{user.id}/calendar/add-natural-language",
+            json={"user_id": user.id, "prompt": "remind me tomorrow at 9am to stretch"},
+        )
+
+    assert res.status_code == 400
+    mock_parse.assert_not_called()
+    assert session.query(OpenLoopAndGoal).filter_by(user_id=user.id).count() == 0

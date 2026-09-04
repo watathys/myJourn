@@ -1615,14 +1615,13 @@ export function useJournalState() {
     setError('')
     try {
       const res = await addToCalendarNaturalLanguage(userId, clean)
-      const refreshedTasks = await getTasks(userId)
-      setTasks(refreshedTasks)
-      if (res.google_connected) {
-        setNotice(res.summary_message || `Added ${res.created_tasks.length} reminders to Google Calendar.`)
-      } else {
-        setNotice(`${res.summary_message || `Added ${res.created_tasks.length} reminders.`} Connect Google Calendar in Settings or above to sync with Google.`)
-      }
-      refreshBackgroundState()
+      // Calendar additions only create Google Calendar events — never tasks —
+      // so there is no task list to refresh here.
+      const count = res.created_count ?? 0
+      setNotice(
+        res.summary_message ||
+          `Added ${count} reminder${count === 1 ? '' : 's'} to Google Calendar.`,
+      )
       return res
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to add items to calendar.')

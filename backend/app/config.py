@@ -39,9 +39,9 @@ class Settings(BaseSettings):
 
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
-    google_redirect_uri: str = "http://127.0.0.1:8000/api/auth/google/callback"
+    google_redirect_uri: str = "https://genfm.app/api/auth/google/callback"
     # Where to send the browser back to after the Google OAuth consent screen.
-    google_post_auth_redirect: str = "http://localhost:5173/"
+    google_post_auth_redirect: str = "https://genfm.app/"
     google_calendar_id: str = "primary"
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="MYJOURN_", extra="ignore")
