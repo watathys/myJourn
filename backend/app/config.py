@@ -50,6 +50,20 @@ class Settings(BaseSettings):
     def google_oauth_configured(self) -> bool:
         return bool(self.google_client_id and self.google_client_secret)
 
+    @property
+    def supabase_hs256_secret(self) -> Optional[str]:
+        """Legacy HS256 signing secret, or None when the value is an API key.
+
+        Supabase's newer ``sb_secret_…``/``sb_publishable_…`` values are API
+        keys rather than JWT signing secrets. Accepting one here would leave
+        HS256 verification permanently failing for a very non-obvious reason.
+        """
+
+        secret = (self.supabase_jwt_secret or "").strip()
+        if not secret or secret.startswith(("sb_secret_", "sb_publishable_", "sbp_")):
+            return None
+        return secret
+
 
 @lru_cache
 def get_settings() -> Settings:

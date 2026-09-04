@@ -4,9 +4,9 @@ from contextvars import ContextVar
 from typing import Annotated, Optional
 
 import jwt
-from jwt import PyJWKClient
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt import PyJWKClient
 from sqlalchemy.orm import Session
 
 from app.ai.client import JournalAI, OpenAIJournalAI
@@ -49,69 +49,75 @@ def get_journal_ai() -> JournalAI:
     )
 
 
+def _unauthorized(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _decode_access_token(token: str, settings: Settings) -> dict:
+    """Verify a Supabase access token's signature and expiry.
+
+    Every branch either returns a verified payload or raises. A token whose
+    signature cannot be checked is rejected rather than decoded unverified,
+    since its ``sub`` claim decides which user's journal the caller reads.
+    """
+
+    try:
+        alg = str(jwt.get_unverified_header(token).get("alg") or "")
+    except jwt.PyJWTError as exc:
+        raise _unauthorized(f"Invalid token: {exc}") from exc
+
+    if alg.startswith(("ES", "RS", "PS")):
+        if not settings.supabase_url:
+            raise _unauthorized("Server cannot verify this token: SUPABASE_URL is not configured")
+        jwks_url = f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+        try:
+            signing_key = _get_jwks_client(jwks_url).get_signing_key_from_jwt(token)
+            return jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=[alg],
+                options={"verify_aud": False},
+            )
+        except Exception as exc:
+            raise _unauthorized(f"Invalid token: {exc}") from exc
+
+    if alg.startswith("HS"):
+        secret = settings.supabase_hs256_secret
+        if not secret:
+            raise _unauthorized(
+                "Server cannot verify this token: no HS256 JWT secret is configured"
+            )
+        try:
+            return jwt.decode(
+                token,
+                secret,
+                algorithms=["HS256", "HS384", "HS512"],
+                options={"verify_aud": False},
+            )
+        except Exception as exc:
+            raise _unauthorized(f"Invalid token: {exc}") from exc
+
+    raise _unauthorized(f"Unsupported token algorithm: {alg or 'none'}")
+
+
 def get_current_user_id(
     credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)],
     settings: Annotated[Settings, Depends(get_settings)],
     session: Annotated[Session, Depends(get_db)],
 ) -> str:
-    user_id: Optional[str] = None
-
-    if credentials and credentials.credentials:
-        token = credentials.credentials
-        try:
-            header = jwt.get_unverified_header(token)
-            alg = header.get("alg", "HS256")
-            payload = None
-
-            if alg.startswith(("ES", "RS", "PS")) and settings.supabase_url:
-                try:
-                    jwks_url = f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
-                    jwks_client = _get_jwks_client(jwks_url)
-                    signing_key = jwks_client.get_signing_key_from_jwt(token)
-                    payload = jwt.decode(
-                        token,
-                        signing_key.key,
-                        algorithms=[alg],
-                        options={"verify_aud": False},
-                    )
-                except Exception:
-                    payload = None
-
-            if payload is None and settings.supabase_jwt_secret:
-                try:
-                    payload = jwt.decode(
-                        token,
-                        settings.supabase_jwt_secret,
-                        algorithms=["HS256", "HS384", "HS512"],
-                        options={"verify_aud": False},
-                    )
-                except Exception:
-                    payload = None
-
-            if payload is None:
-                payload = jwt.decode(
-                    token,
-                    options={"verify_signature": False, "verify_aud": False},
-                )
-
-            user_id = payload.get("sub")
-        except jwt.PyJWTError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid token: {exc}",
-                headers={"WWW-Authenticate": "Bearer"},
-            ) from exc
-
-    ctx_user = _test_user_context.get()
-    if ctx_user:
-        user_id = ctx_user
+    user_id: Optional[str] = _test_user_context.get()
 
     if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authentication token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        if not (credentials and credentials.credentials):
+            raise _unauthorized("Missing authentication token")
+        user_id = _decode_access_token(credentials.credentials, settings).get("sub")
+
+    if not user_id:
+        raise _unauthorized("Missing authentication token")
 
     bind_user_rls(session, user_id)
 

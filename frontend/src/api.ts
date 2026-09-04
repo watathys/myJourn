@@ -113,6 +113,37 @@ export type GoogleStatus = {
   email: string | null
 }
 
+/**
+ * Every supported deployment serves the API under the page's own origin: Vite
+ * proxies `/api` in development and `vercel.json` rewrites `/api` to the
+ * backend in production, on the custom domain as well as the *.vercel.app one.
+ * A cross-origin `VITE_API_URL` therefore gains nothing and costs a CORS
+ * preflight per request, so it is ignored rather than trusted.
+ */
+function resolveApiBase(): string {
+  const raw = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '')
+  if (!raw || raw.includes('your-actual-backend-url') || raw.includes('example.com')) return '/api'
+
+  const withScheme = /^(https?:\/\/|\/)/i.test(raw) ? raw : `https://${raw}`
+
+  if (!withScheme.startsWith('/') && typeof window !== 'undefined') {
+    try {
+      if (new URL(withScheme).origin !== window.location.origin) {
+        console.warn(
+          `Ignoring cross-origin VITE_API_URL (${raw}); using the same-origin /api rewrite instead.`,
+        )
+        return '/api'
+      }
+    } catch {
+      return '/api'
+    }
+  }
+
+  return withScheme.endsWith('/api') ? withScheme : `${withScheme}/api`
+}
+
+const API_BASE = resolveApiBase()
+
 const NETWORK_RETRY_DELAYS_MS = [500, 1500, 4000]
 
 /**
@@ -155,18 +186,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  let apiBase = (import.meta.env.VITE_API_URL || '/api').trim().replace(/\/$/, '')
-  if (apiBase.includes('your-actual-backend-url') || apiBase.includes('example.com')) {
-    apiBase = '/api'
-  } else if (apiBase && !apiBase.startsWith('http://') && !apiBase.startsWith('https://') && !apiBase.startsWith('/')) {
-    apiBase = `https://${apiBase}`
-  }
-
-  if (!apiBase.endsWith('/api')) {
-    apiBase = `${apiBase}/api`
-  }
-
-  const response = await fetchWithRetry(`${apiBase}${path}`, {
+  const response = await fetchWithRetry(`${API_BASE}${path}`, {
     ...init,
     headers,
   })
