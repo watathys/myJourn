@@ -25,11 +25,11 @@ export function HomeView() {
       <DayPanel />
       <div className="home-grid">
         <div className="home-column">
-          <CalendarAddCard />
           <TaskCard />
         </div>
         <div className="home-column">
           <GoalCard />
+          <CalendarAddCard />
           <RemindersCard />
         </div>
       </div>

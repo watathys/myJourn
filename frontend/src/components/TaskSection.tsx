@@ -19,7 +19,7 @@ export function TaskSection({ section, tasks }: { section: Section | null; tasks
   const id = section?.id ?? 'unsectioned'
   const color = section?.color ?? 'slate'
   const name = section?.name ?? 'Everything else'
-  const collapsed = !isUnsectioned && collapsedSectionIds.includes(section!.id)
+  const collapsed = collapsedSectionIds.includes(id)
   const isDropTarget = sectionDropTarget === id
   const isEditing = !isUnsectioned && editingSectionId === section!.id
   const isReordering = !isUnsectioned && draggedSectionId === section!.id
@@ -42,9 +42,8 @@ export function TaskSection({ section, tasks }: { section: Section | null; tasks
       <div className="section-head">
         <button
           className="section-toggle"
-          onClick={() => { if (!isUnsectioned) toggleSectionCollapsed(section!.id) }}
+          onClick={() => toggleSectionCollapsed(id)}
           aria-expanded={!collapsed}
-          disabled={isUnsectioned}
         >
           {collapsed ? <ChevronRight /> : <ChevronDown />}
           <span className="section-dot" aria-hidden="true" />
