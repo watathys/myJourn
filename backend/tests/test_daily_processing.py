@@ -863,6 +863,19 @@ def test_percy_scheduled_reminder_creates_task_with_remind_at(session: Session) 
     assert task.remind_at.hour == 9
 
 
+def test_week_start_of_returns_sunday() -> None:
+    # Sep 6, 2026 is Sunday
+    assert week_start_of(date(2026, 9, 6)) == date(2026, 9, 6)
+    # Sep 7, 2026 is Monday
+    assert week_start_of(date(2026, 9, 7)) == date(2026, 9, 6)
+    # Sep 12, 2026 is Saturday
+    assert week_start_of(date(2026, 9, 12)) == date(2026, 9, 6)
+    # Sep 13, 2026 is Sunday
+    assert week_start_of(date(2026, 9, 13)) == date(2026, 9, 13)
+    # Sep 20, 2026 is Sunday
+    assert week_start_of(date(2026, 9, 20)) == date(2026, 9, 20)
+
+
 def test_percy_goal_request_creates_weekly_goal(session: Session) -> None:
     user = User()
     session.add(user)

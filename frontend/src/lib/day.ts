@@ -65,12 +65,11 @@ export function tomorrow() {
   return addDaysToIsoDate(journalDay(), 1)
 }
 
-/** The Monday (as YYYY-MM-DD) of the week containing `isoDate` (defaults to the current journal day). */
+/** The Sunday (as YYYY-MM-DD) of the week containing `isoDate` (defaults to the current journal day). */
 export function weekStartOf(isoDate?: string) {
   const base = new Date(`${isoDate ?? journalDay()}T12:00:00`)
   const day = base.getDay() // 0 = Sunday
-  const diffToMonday = day === 0 ? -6 : 1 - day
-  base.setDate(base.getDate() + diffToMonday)
+  base.setDate(base.getDate() - day)
   return toIsoDate(base)
 }
 

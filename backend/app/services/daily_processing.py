@@ -46,9 +46,10 @@ INSIGHT_COOLDOWN_DAYS = 2
 
 
 def week_start_of(entry_date: date) -> date:
-    """The Monday of the week containing ``entry_date``."""
+    """The Sunday of the week containing ``entry_date``."""
 
-    return entry_date - timedelta(days=entry_date.weekday())
+    days_since_sunday = (entry_date.weekday() + 1) % 7
+    return entry_date - timedelta(days=days_since_sunday)
 
 
 @dataclass(frozen=True)
