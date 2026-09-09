@@ -221,7 +221,7 @@ export function WeeklyPanel() {
 
           <Card title="What you’re working on" eyebrow="Day to day" count={visibleTasks.length}>
             {visibleTasks.length > 0 ? (
-              <ul className="rows">{visibleTasks.map((task) => <TaskRow key={task.id} task={task} />)}</ul>
+              <ul className="rows">{visibleTasks.map((task) => <TaskRow key={task.id} task={task} showSectionTag />)}</ul>
             ) : (
               <EmptyNote>Nothing here yet.</EmptyNote>
             )}

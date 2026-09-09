@@ -183,7 +183,7 @@ export function WriteView() {
           {workingTasks.length > 0 ? (
             <ul className="list">
               {workingTasks.map((task) => (
-                <TaskRow key={task.id} task={task} />
+                <TaskRow key={task.id} task={task} showSectionTag />
               ))}
             </ul>
           ) : (

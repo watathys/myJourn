@@ -1,12 +1,10 @@
 import { Plus } from 'lucide-react'
-import { durationMinutesFromTimes, endTimeFromRemindAt } from '../lib/day'
 import { useJournal } from '../state/journalContext'
 
-/** Shared "add a task" row. Times are optional and only exist to place a calendar event. */
+/** Shared "add a task" row. */
 export function TaskForm({ placeholder = 'Add a task', onAdded }: { placeholder?: string; onAdded?: (id: string) => void }) {
   const {
-    newTaskDraft, setNewTaskDraft, newTaskStartTime, setNewTaskStartTime, newTaskEndTime,
-    setNewTaskEndTime, addingTask, addManualTask, todayIso, sections, newTaskSectionId,
+    newTaskDraft, setNewTaskDraft, addingTask, addManualTask, sections, newTaskSectionId,
     setNewTaskSectionId,
   } = useJournal()
 
@@ -43,38 +41,6 @@ export function TaskForm({ placeholder = 'Add a task', onAdded }: { placeholder?
             ))}
           </select>
         </label>
-      </div>
-      <div className="task-form-times">
-        <label>
-          <span>Start</span>
-          <input
-            type="time"
-            value={newTaskStartTime}
-            onChange={(event) => {
-              const next = event.target.value
-              setNewTaskStartTime(next)
-              if (!next) {
-                setNewTaskEndTime('')
-                return
-              }
-              if (newTaskEndTime && durationMinutesFromTimes(next, newTaskEndTime) == null) {
-                setNewTaskEndTime(endTimeFromRemindAt(`${todayIso}T${next}:00Z`, 60))
-              }
-            }}
-            aria-label="Optional start time for calendar"
-          />
-        </label>
-        <label>
-          <span>End</span>
-          <input
-            type="time"
-            value={newTaskEndTime}
-            onChange={(event) => setNewTaskEndTime(event.target.value)}
-            disabled={!newTaskStartTime}
-            aria-label="Optional end time for calendar"
-          />
-        </label>
-        <p>{newTaskStartTime ? 'Adds this to your calendar today' : 'Times are optional'}</p>
       </div>
     </div>
   )

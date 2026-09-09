@@ -474,6 +474,12 @@ def update_task(
     task = _get_owned_task(session, task_id, current_user_id)
     fields_set = payload.model_fields_set
 
+    if "goal_text" in fields_set and payload.goal_text is not None:
+        clean_goal_text = payload.goal_text.strip()
+        if not clean_goal_text:
+            raise HTTPException(status_code=422, detail="goal_text must not be empty")
+        task.goal_text = clean_goal_text
+
     if "target_count" in fields_set and payload.target_count is not None:
         task.target_count = max(1, payload.target_count)
     if "current_count" in fields_set and payload.current_count is not None:

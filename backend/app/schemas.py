@@ -125,6 +125,7 @@ class CreateTaskRequest(BaseModel):
 class UpdateTaskRequest(BaseModel):
     user_id: str
     status: Optional[GoalStatus] = None
+    goal_text: Optional[str] = Field(default=None, min_length=1)
     target_count: Optional[int] = None
     current_count: Optional[int] = None
     remind_at: Optional[datetime] = None

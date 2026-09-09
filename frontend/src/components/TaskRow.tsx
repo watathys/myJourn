@@ -1,4 +1,4 @@
-import { AlarmClock, Archive, Bell, Check, GripVertical, Plus, X } from 'lucide-react'
+import { AlarmClock, Archive, Bell, Check, GripVertical, Pencil, Plus, X } from 'lucide-react'
 import type { Task } from '../api'
 import { formatRemindAt } from '../lib/day'
 import { taskProgress } from '../lib/entries'
@@ -11,14 +11,23 @@ type TaskRowProps = {
   /** While planning the day, rows pick tasks for today instead of completing them. */
   selectMode?: boolean
   selected?: boolean
+  /** Show the task's section as a small chip. Useful when rows are listed
+   * outside their section group (e.g. the "Today" list), where the category
+   * would otherwise be invisible. */
+  showSectionTag?: boolean
 }
 
-export function TaskRow({ task, draggable = false, selectMode = false, selected = false }: TaskRowProps) {
+export function TaskRow({
+  task, draggable = false, selectMode = false, selected = false, showSectionTag = false,
+}: TaskRowProps) {
   const {
-    patchTask, updatingTaskId, acknowledgeHighlight, openScheduleModal, openSnoozeModal, toggleMorningTask,
+    sections, patchTask, updatingTaskId, acknowledgeHighlight, openScheduleModal, openSnoozeModal, toggleMorningTask,
     draggedTaskId, taskDropTarget, handleTaskDragStart, handleTaskDragOver, handleTaskDrop, clearTaskDrag,
+    editingTaskId, setEditingTaskId, editTaskText, setEditTaskText, startEditingTask, saveTaskEdit,
   } = useJournal()
   const { isCompleted, targetCount, currentCount } = taskProgress(task)
+  const section = task.section_id ? sections.find((item) => item.id === task.section_id) : undefined
+  const hasMeta = Boolean(showSectionTag && section) || Boolean(task.remind_at) || Boolean(task.just_resurfaced)
 
   const classNames = ['row']
   if (isCompleted) classNames.push('row-done')
@@ -26,6 +35,44 @@ export function TaskRow({ task, draggable = false, selectMode = false, selected 
   if (selectMode && selected) classNames.push('row-picked')
   if (draggable && draggedTaskId === task.id) classNames.push('is-dragging')
   if (draggable && taskDropTarget?.id === task.id) classNames.push(`drop-${taskDropTarget.position}`)
+
+  if (editingTaskId === task.id) {
+    return (
+      <li className="row row-editing">
+        <div className="task-edit">
+          <input
+            value={editTaskText}
+            onChange={(event) => setEditTaskText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void saveTaskEdit(task)
+              if (event.key === 'Escape') setEditingTaskId(null)
+            }}
+            placeholder="Task"
+            aria-label="Task text"
+            autoFocus
+          />
+          <button
+            className="icon-button"
+            disabled={updatingTaskId === task.id || !editTaskText.trim()}
+            onClick={() => void saveTaskEdit(task)}
+            aria-label="Save task"
+            title="Save"
+          >
+            <Check />
+          </button>
+          <button
+            className="icon-button"
+            disabled={updatingTaskId === task.id}
+            onClick={() => setEditingTaskId(null)}
+            aria-label="Cancel editing"
+            title="Cancel"
+          >
+            <X />
+          </button>
+        </div>
+      </li>
+    )
+  }
 
   return (
     <li
@@ -35,9 +82,13 @@ export function TaskRow({ task, draggable = false, selectMode = false, selected 
       onDragOver={draggable ? (event) => handleTaskDragOver(event, task.id) : undefined}
       onDragEnd={draggable ? clearTaskDrag : undefined}
       onDrop={draggable ? (event) => {
-        event.stopPropagation()
-        if (!taskDropTarget || taskDropTarget.id !== task.id) return
-        void handleTaskDrop(task.id, taskDropTarget.position)
+        // During a section (category) reorder the row is not a drop target, so
+        // let the event bubble to the section group (which commits the move).
+        if (draggedTaskId) {
+          event.stopPropagation()
+          if (!taskDropTarget || taskDropTarget.id !== task.id) return
+          void handleTaskDrop(task.id, taskDropTarget.position)
+        }
       } : undefined}
     >
       {draggable && <span className="row-grip" aria-hidden="true"><GripVertical /></span>}
@@ -62,8 +113,14 @@ export function TaskRow({ task, draggable = false, selectMode = false, selected 
 
       <div className="row-body">
         <p>{task.goal_text}</p>
-        {(task.remind_at || task.just_resurfaced) && (
+        {hasMeta && (
           <div className="row-meta">
+            {showSectionTag && section && (
+              <span className="tag tag-section" data-color={section.color}>
+                <span className="section-dot" aria-hidden="true" />
+                {section.name}
+              </span>
+            )}
             {task.remind_at && (
               <span className="tag">
                 <Bell /> {formatRemindAt(task.remind_at)}
@@ -80,6 +137,15 @@ export function TaskRow({ task, draggable = false, selectMode = false, selected 
       </div>
 
       <div className="row-actions">
+        <button
+          className="icon-button"
+          disabled={updatingTaskId === task.id}
+          onClick={() => startEditingTask(task)}
+          aria-label={`Edit ${task.goal_text}`}
+          title="Edit task"
+        >
+          <Pencil />
+        </button>
         <button
           className="icon-button"
           disabled={updatingTaskId === task.id}

@@ -120,6 +120,35 @@ def test_add_task_is_stored_verbatim_without_ai(client: TestClient, session: Ses
     assert data["has_calendar_reminder"] is False
 
 
+def test_edit_task_text(client: TestClient, session: Session) -> None:
+    user = User()
+    session.add(user)
+    session.commit()
+
+    task = client.post(
+        f"/api/users/{user.id}/tasks",
+        json={"goal_text": "Read chapter 4"},
+    ).json()
+
+    # Rename a task; surrounding whitespace is trimmed.
+    renamed = client.patch(
+        f"/api/tasks/{task['id']}",
+        json={"user_id": user.id, "goal_text": "  Read chapter 5  "},
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["goal_text"] == "Read chapter 5"
+
+    # A whitespace-only title is rejected and leaves the text unchanged.
+    blank = client.patch(
+        f"/api/tasks/{task['id']}",
+        json={"user_id": user.id, "goal_text": "   "},
+    )
+    assert blank.status_code == 422
+
+    task_list = client.get(f"/api/users/{user.id}/tasks").json()
+    assert [t["goal_text"] for t in task_list] == ["Read chapter 5"]
+
+
 def test_percy_chat_endpoint(client: TestClient, session: Session) -> None:
     user = User()
     session.add(user)
@@ -207,6 +236,48 @@ def test_percy_create_goal_endpoint(client: TestClient, session: Session) -> Non
     assert data["goal"]["target_count"] == 7
     assert data["goal"]["goal_text"] == "Go to the gym"
     assert "gym" in data["reply"].lower()
+
+
+def test_percy_create_goal_at_6pm_today_stays_today(session: Session) -> None:
+    from app.services.percy_goal import create_goal_with_percy
+    from app.config import Settings
+    from datetime import date, datetime, timezone, timedelta
+    from unittest.mock import MagicMock, patch
+
+    user = User()
+    session.add(user)
+    session.commit()
+
+    fake_ai = MagicMock()
+    fake_ai.extract_json.return_value = MagicMock(
+        goal_text="Dinner with family",
+        target_count=1,
+        schedule_phrase="today at 6pm",
+        remind_time_str="6:00 PM",
+        is_daily_recurring=False,
+        reply="Scheduled dinner with family for 6 PM today!",
+    )
+    settings = Settings()
+
+    # Mock datetime.now() in percy_goal to return a datetime at 2:00 PM (14:00)
+    fake_now = datetime(2026, 9, 9, 14, 0, 0)
+    with patch("app.services.percy_goal.datetime") as mock_dt:
+        mock_dt.now.return_value = fake_now
+        mock_dt.combine = datetime.combine
+        mock_dt.timezone = timezone
+
+        goal, reply = create_goal_with_percy(
+            session=session,
+            ai=fake_ai,
+            settings=settings,
+            user_id=user.id,
+            user_query="remind me at 6pm today for dinner with family",
+            week_start_date=date(2026, 9, 6),
+        )
+
+    assert goal.remind_at is not None
+    assert goal.remind_at.date() == date.today()
+    assert goal.remind_at.hour == 18
 
 
 def test_percy_create_goal_parses_schedule_from_raw_query(client: TestClient, session: Session) -> None:

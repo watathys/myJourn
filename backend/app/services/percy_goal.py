@@ -131,8 +131,10 @@ Carefully extract the goal details from the user prompt:
             remind_at = fallback_remind_at
 
     # Never schedule a reminder in the past; a bare time like "7am" after 7am
-    # should roll to the next day.
-    if remind_at is not None and remind_at <= datetime.now(timezone.utc):
+    # should roll to the next day. Compare against local wall-clock time
+    # (since remind_at stores local wall clock labeled as UTC).
+    now_local_utc = datetime.combine(date.today(), datetime.now().time(), tzinfo=timezone.utc)
+    if remind_at is not None and remind_at <= now_local_utc:
         remind_at = remind_at + timedelta(days=1)
 
     goal = OpenLoopAndGoal(

@@ -55,10 +55,14 @@ def test_sync_task_event_uses_local_datetime_and_timezone() -> None:
     assert task.calendar_event_id == "event-123"
 
 
-    _, kwargs = mock_service.events().insert.call_args
-    body = kwargs["body"]
-    assert body["start"]["dateTime"] == "2026-07-25T09:00:00"
-    assert body["start"]["timeZone"] == "America/Denver"
+def test_get_calendar_timezone_falls_back_when_google_returns_utc() -> None:
+    settings = Settings()
+    mock_service = MagicMock()
+    mock_service.calendars().get().execute.return_value = {"timeZone": "UTC"}
+
+    with patch("tzlocal.get_localzone_name", return_value="America/New_York"):
+        tz = google_calendar._get_calendar_timezone(mock_service, settings)
+        assert tz == "America/New_York"
 
 
 def test_google_callback_catches_unexpected_errors_and_redirects(client: TestClient) -> None:

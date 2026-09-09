@@ -12,6 +12,7 @@ export function TaskCard() {
     dayState, visibleTasks, plannedTasks, backlogTasks, snoozedTasks, morningSelectedIds,
     taskFormOpen, setTaskFormOpen, snoozedOpen, setSnoozedOpen, patchTask,
     sections, sectionFormOpen, setSectionFormOpen, openSectionForm, addingSection, addSection,
+    draggedSectionId, sectionReorderTarget, handleSectionReorderDrop, clearSectionReorderDrag,
   } = useJournal()
 
   const selecting = dayState === 'plan'
@@ -43,22 +44,43 @@ export function TaskCard() {
         <div className="task-group">
           <p className="group-label">Today</p>
           <ul className="rows">
-            {plannedTasks.map((task) => <TaskRow key={task.id} task={task} />)}
+            {plannedTasks.map((task) => <TaskRow key={task.id} task={task} showSectionTag />)}
           </ul>
         </div>
       )}
 
-      {sections.map((section) => (
-        <TaskSection
-          key={section.id}
-          section={section}
-          tasks={sectionSource.filter((task) => task.section_id === section.id)}
-        />
-      ))}
+      {/* Section stack. The wrapper is also the drop target for the *gaps*
+          between sections, so a release right on the insert marker (which is
+          drawn in the gap) commits the reorder instead of silently cancelling. */}
+      <div
+        className="sections-stack"
+        onDragOver={draggedSectionId ? (event) => {
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'move'
+        } : undefined}
+        onDrop={draggedSectionId ? (event) => {
+          // Drops over a section's own content are committed by the section
+          // group (it bubbles first); only handle releases on whitespace/gaps.
+          if ((event.target as HTMLElement).closest?.('.section-group')) return
+          if (sectionReorderTarget) {
+            void handleSectionReorderDrop(sectionReorderTarget.id, sectionReorderTarget.position)
+          } else {
+            clearSectionReorderDrag()
+          }
+        } : undefined}
+      >
+        {sections.map((section) => (
+          <TaskSection
+            key={section.id}
+            section={section}
+            tasks={sectionSource.filter((task) => task.section_id === section.id)}
+          />
+        ))}
 
-      {(unsectionedTasks.length > 0 || sections.length === 0) && (
-        <TaskSection section={null} tasks={unsectionedTasks} />
-      )}
+        {(unsectionedTasks.length > 0 || sections.length === 0) && (
+          <TaskSection section={null} tasks={unsectionedTasks} />
+        )}
+      </div>
 
       {visibleTasks.length === 0 && (
         <EmptyNote>

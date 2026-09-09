@@ -186,6 +186,20 @@ code {
 .tag-new { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
 .tag-ok { background: var(--accent-soft); color: var(--accent-ink); }
 
+/* Category chip shown on task rows that appear outside their section group
+ * (e.g. the "Today" list), so the task's section is still identifiable. */
+.tag-section {
+  background: var(--sec-bg, var(--surface-sunk));
+  color: var(--sec-fg, var(--muted));
+  font-weight: 600;
+}
+
+.tag-section .section-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--sec-fg, var(--accent));
+}
+
 .count-pill {
   min-width: 22px;
   padding: 2px 7px;
@@ -854,28 +868,6 @@ textarea {
 
 .task-form-section select { min-width: 160px; }
 
-.task-form-times {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--s-3);
-  flex-wrap: wrap;
-}
-
-.task-form-times label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: var(--t-xs);
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.task-form-times p {
-  margin: 0 0 4px;
-  color: var(--muted);
-  font-size: var(--t-xs);
-}
-
 .target-select {
   display: inline-flex;
   align-items: center;
@@ -907,6 +899,15 @@ textarea {
 }
 
 .goal-edit-target input { width: 72px; }
+
+.task-edit {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+}
+
+.task-edit > input { flex: 1; min-width: 160px; }
 
 /* ------------------------------------------------------------ small lists */
 
@@ -1964,30 +1965,31 @@ textarea {
 /* ============================================================ task sections */
 
 /* Color-coded section palettes (light). Each key drives --sec-fg / --sec-bg /
- * --sec-line on the .section-group element. */
-.section-group[data-color='forest'] { --sec-fg: #2f5a47; --sec-bg: #e9efe9; --sec-line: #d3dfd6; }
-.section-group[data-color='sage']   { --sec-fg: #5f7058; --sec-bg: #eef0ea; --sec-line: #d9dfd2; }
-.section-group[data-color='amber']  { --sec-fg: #9a6a1d; --sec-bg: #f7eed9; --sec-line: #eadbb9; }
-.section-group[data-color='clay']   { --sec-fg: #a8552f; --sec-bg: #f8e9e2; --sec-line: #ecd4ca; }
-.section-group[data-color='sky']    { --sec-fg: #34677f; --sec-bg: #e6eef2; --sec-line: #cddfe6; }
-.section-group[data-color='violet'] { --sec-fg: #65539b; --sec-bg: #edeaf6; --sec-line: #dad3ec; }
-.section-group[data-color='rose']   { --sec-fg: #a04461; --sec-bg: #f7e7ec; --sec-line: #ebced7; }
-.section-group[data-color='slate']  { --sec-fg: #54606c; --sec-bg: #edeff1; --sec-line: #d9dde1; }
+ * --sec-line on any element tagged with a section color, so chips outside a
+ * section group (e.g. the "Today" list) can share the palette. */
+[data-color='forest'] { --sec-fg: #2f5a47; --sec-bg: #e9efe9; --sec-line: #d3dfd6; }
+[data-color='sage']   { --sec-fg: #5f7058; --sec-bg: #eef0ea; --sec-line: #d9dfd2; }
+[data-color='amber']  { --sec-fg: #9a6a1d; --sec-bg: #f7eed9; --sec-line: #eadbb9; }
+[data-color='clay']   { --sec-fg: #a8552f; --sec-bg: #f8e9e2; --sec-line: #ecd4ca; }
+[data-color='sky']    { --sec-fg: #34677f; --sec-bg: #e6eef2; --sec-line: #cddfe6; }
+[data-color='violet'] { --sec-fg: #65539b; --sec-bg: #edeaf6; --sec-line: #dad3ec; }
+[data-color='rose']   { --sec-fg: #a04461; --sec-bg: #f7e7ec; --sec-line: #ebced7; }
+[data-color='slate']  { --sec-fg: #54606c; --sec-bg: #edeff1; --sec-line: #d9dde1; }
 
-[data-theme='dark'] .section-group[data-color='forest'] { --sec-fg: #6fae8d; --sec-bg: #1d3329; --sec-line: #2c473a; }
-[data-theme='dark'] .section-group[data-color='sage']   { --sec-fg: #93a686; --sec-bg: #232a20; --sec-line: #39422f; }
-[data-theme='dark'] .section-group[data-color='amber']  { --sec-fg: #d9a44f; --sec-bg: #332a18; --sec-line: #4a3d22; }
-[data-theme='dark'] .section-group[data-color='clay']   { --sec-fg: #d97a5a; --sec-bg: #35221a; --sec-line: #523027; }
-[data-theme='dark'] .section-group[data-color='sky']    { --sec-fg: #6fa3c2; --sec-bg: #1c2b34; --sec-line: #2b424e; }
-[data-theme='dark'] .section-group[data-color='violet'] { --sec-fg: #9d8cd4; --sec-bg: #262134; --sec-line: #3a3352; }
-[data-theme='dark'] .section-group[data-color='rose']   { --sec-fg: #d5768e; --sec-bg: #33202a; --sec-line: #50303d; }
-[data-theme='dark'] .section-group[data-color='slate']  { --sec-fg: #8fa0b0; --sec-bg: #23282e; --sec-line: #363d45; }
+[data-theme='dark'] [data-color='forest'] { --sec-fg: #6fae8d; --sec-bg: #1d3329; --sec-line: #2c473a; }
+[data-theme='dark'] [data-color='sage']   { --sec-fg: #93a686; --sec-bg: #232a20; --sec-line: #39422f; }
+[data-theme='dark'] [data-color='amber']  { --sec-fg: #d9a44f; --sec-bg: #332a18; --sec-line: #4a3d22; }
+[data-theme='dark'] [data-color='clay']   { --sec-fg: #d97a5a; --sec-bg: #35221a; --sec-line: #523027; }
+[data-theme='dark'] [data-color='sky']    { --sec-fg: #6fa3c2; --sec-bg: #1c2b34; --sec-line: #2b424e; }
+[data-theme='dark'] [data-color='violet'] { --sec-fg: #9d8cd4; --sec-bg: #262134; --sec-line: #3a3352; }
+[data-theme='dark'] [data-color='rose']   { --sec-fg: #d5768e; --sec-bg: #33202a; --sec-line: #50303d; }
+[data-theme='dark'] [data-color='slate']  { --sec-fg: #8fa0b0; --sec-bg: #23282e; --sec-line: #363d45; }
 
 .section-group {
+  position: relative;
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--surface);
-  overflow: hidden;
   transition: border-color .15s ease, box-shadow .15s ease;
 }
 
@@ -1998,10 +2000,16 @@ textarea {
   gap: var(--s-2);
   background: var(--sec-bg, var(--surface-sunk));
   border-bottom: 1px solid var(--sec-line, var(--line));
+  border-radius: calc(var(--r-md) - 1px) calc(var(--r-md) - 1px) 0 0;
+  user-select: none;
   transition: background .15s ease;
 }
 
-.section-group.is-collapsed .section-head { border-bottom-color: transparent; }
+.section-group.is-collapsed .section-head {
+  border-bottom-color: transparent;
+  /* A collapsed section only shows its header, so round the bottom corners too. */
+  border-radius: calc(var(--r-md) - 1px);
+}
 
 .section-toggle {
   display: flex;
@@ -2074,8 +2082,14 @@ textarea {
   transition: opacity .15s ease;
 }
 
+.section-grip:active { cursor: grabbing; }
+
 .section-head:hover .section-grip,
 .section-head:focus-within .section-grip { opacity: 1; }
+
+/* The whole header is a drag handle, so reordering is easy to discover. */
+.section-group:not(.is-unsectioned) .section-toggle { cursor: grab; }
+.section-group:not(.is-unsectioned) .section-toggle:active { cursor: grabbing; }
 
 .section-body {
   border-left: 3px solid var(--sec-fg, var(--accent));
@@ -2093,6 +2107,14 @@ textarea {
 }
 
 .section-edit { padding: var(--s-3); }
+
+/* Quick "add a task" field revealed by the + button on a section head. */
+.section-quick-add {
+  margin: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-3);
+}
+
+.section-quick-add .task-form-main { gap: var(--s-2); }
 
 /* Drop target: the header fills with the section color, like a Chrome tab group. */
 .section-group.is-drop-target {
@@ -2113,10 +2135,56 @@ textarea {
 .section-group.is-drop-target .section-dot { background: #fff; }
 .section-group.is-drop-target.is-unsectioned .section-dot { background: transparent; border-color: #fff; }
 
-/* Section reordering (drag by the grip) */
-.section-group.is-reordering { opacity: .45; }
-.section-group.drop-before { box-shadow: inset 0 3px 0 var(--accent); }
-.section-group.drop-after { box-shadow: inset 0 -3px 0 var(--accent); }
+/* Section reordering */
+
+/* The dragged section dims in place, showing where it came from. */
+.section-group.is-reordering { opacity: .4; }
+
+/* The group the cursor is currently over is ringed so the target is obvious. */
+.section-group.drop-before,
+.section-group.drop-after { border-color: var(--sec-fg, var(--accent)); }
+
+/* A prominent bar in the gap at the exact boundary where the dragged section
+ * will land. It is drawn just outside the group's top/bottom edge so it reads
+ * as "insert here" (not as a highlight on the target group itself). */
+.section-group.drop-before::before,
+.section-group.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  border-radius: 3px;
+  z-index: 4;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--surface), 0 1px 4px rgba(0, 0, 0, .22);
+  pointer-events: none;
+  animation: section-marker-in .12s ease-out;
+}
+.section-group.drop-before::before { top: -7px; }
+.section-group.drop-after::after { bottom: -7px; }
+
+/* Dropping anywhere on "Everything else" moves the section to the very end of
+ * the list; ring the group so the pointer location still gives feedback even
+ * when the group is tall and its top edge is far away. */
+.section-group.is-unsectioned.is-reorder-end {
+  border-color: var(--sec-fg, var(--accent));
+  box-shadow: 0 0 0 2px var(--sec-fg, var(--accent));
+}
+
+@keyframes section-marker-in {
+  from { opacity: 0; transform: scaleX(.55); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+/* Container around all section groups; its own gaps are where the insert
+ * marker is drawn and are valid drop targets while reordering. */
+.sections-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
 
 /* ------------------------------------------------------- section form */
 

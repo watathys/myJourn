@@ -311,6 +311,7 @@ export function createTask(
 }
 
 export type TaskUpdate = {
+  goal_text?: string
   status?: Task['status']
   target_count?: number
   current_count?: number

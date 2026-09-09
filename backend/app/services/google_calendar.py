@@ -155,7 +155,7 @@ def _get_calendar_timezone(service, settings: Settings) -> str:
     try:
         cal = service.calendars().get(calendarId=settings.google_calendar_id).execute()
         tz = cal.get("timeZone")
-        if tz:
+        if tz and tz.upper() != "UTC":
             return tz
     except Exception:
         logger.debug(
@@ -163,9 +163,12 @@ def _get_calendar_timezone(service, settings: Settings) -> str:
         )
     try:
         import tzlocal
-        return tzlocal.get_localzone_name()
+        local_tz = tzlocal.get_localzone_name()
+        if local_tz and local_tz.upper() != "UTC":
+            return local_tz
     except Exception:
-        return "UTC"
+        pass
+    return "UTC"
 
 
 def _build_event_body(

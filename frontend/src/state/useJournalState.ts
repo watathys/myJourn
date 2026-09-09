@@ -7,7 +7,7 @@ import {
   getEntries, getGoogleAuthorizeUrl, getGoogleStatus, getLifeInsights, getNorthStar, getPercyReminders,
   getSavedPercyAdvice, getSections, getSpellingCorrections, getTasks, getWeeklyGoals, getWeeklyPlanningSession,
   markLifeInsightRead, processEntry, reorderGoals, reorderSections, reorderTasks, saveDailyPlan, saveNorthStar,
-  startWeeklyPlanning, updateGoal, updateJournalEntry, updateSection, updateTask,
+  startWeeklyPlanning, updateGoal, updateJournalEntry, updateTask,
   type DailyPlan, type Goal, type GoalUpdate, type GoogleStatus, type JournalEntry, type LifeInsight,
   type PercyChatMessage, type PercyReminder, type SavedPercyAdvice, type SpellingCorrection, type Task,
   type TaskSection, type TaskUpdate, type WeeklyPlanningSession,
@@ -166,21 +166,18 @@ export function useJournalState() {
 
   // Tasks
   const [newTaskDraft, setNewTaskDraft] = useState('')
-  const [newTaskStartTime, setNewTaskStartTime] = useState('')
-  const [newTaskEndTime, setNewTaskEndTime] = useState('')
   const [newTaskSectionId, setNewTaskSectionId] = useState('')
   const [addingTask, setAddingTask] = useState(false)
   const [taskFormOpen, setTaskFormOpen] = useState(false)
   const [snoozedOpen, setSnoozedOpen] = useState(false)
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [editTaskText, setEditTaskText] = useState('')
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [taskDropTarget, setTaskDropTarget] = useState<{ id: string; position: 'before' | 'after' } | null>(null)
 
   // Task sections
   const [sectionFormOpen, setSectionFormOpen] = useState(false)
-  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
-  const [newSectionName, setNewSectionName] = useState('')
-  const [newSectionColor, setNewSectionColor] = useState('forest')
   const [addingSection, setAddingSection] = useState(false)
   const [sectionDropTarget, setSectionDropTarget] = useState<string | 'unsectioned' | null>(null)
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null)
@@ -920,14 +917,7 @@ export function useJournalState() {
     setAddingTask(true)
     setError('')
     try {
-      const options: { remind_at?: string; duration_minutes?: number; section_id?: string } = {}
-      if (newTaskStartTime) {
-        options.remind_at = combineToRemindAt(todayIso, newTaskStartTime)
-        if (newTaskEndTime) {
-          const duration = durationMinutesFromTimes(newTaskStartTime, newTaskEndTime)
-          if (duration != null) options.duration_minutes = duration
-        }
-      }
+      const options: { section_id?: string } = {}
       const sectionId = newTaskSectionId.trim()
       if (sectionId) options.section_id = sectionId
       const task = await createTask(userId, clean, options)
@@ -936,22 +926,33 @@ export function useJournalState() {
         setMorningSelectedIds((current) => (current.includes(task.id) ? current : [...current, task.id]))
       }
       setNewTaskDraft('')
-      setNewTaskStartTime('')
-      setNewTaskEndTime('')
       setNewTaskSectionId('')
-      if (options.remind_at) {
-        if (!googleStatus?.connected) {
-          setNotice('Task saved — connect Google Calendar in Settings so timed tasks appear there.')
-        } else if (!task.has_calendar_reminder) {
-          setError('Task saved, but it couldn’t be added to Google Calendar. Try reconnecting Google in Settings.')
-        } else {
-          setNotice('Added to your Google Calendar.')
-        }
+      refreshBackgroundState()
+      return task
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to add that task.')
+    } finally {
+      setAddingTask(false)
+    }
+  }
+
+  /** Quick-add a task straight into a specific section (category). */
+  async function addTaskToSection(sectionId: string, text: string): Promise<Task | undefined> {
+    const clean = text.trim()
+    if (!userId || !clean || addingTask) return undefined
+    setAddingTask(true)
+    setError('')
+    try {
+      const task = await createTask(userId, clean, { section_id: sectionId })
+      setTasks((current) => sortWorkingTasks([...current, task]))
+      if (planEditing) {
+        setMorningSelectedIds((current) => (current.includes(task.id) ? current : [...current, task.id]))
       }
       refreshBackgroundState()
       return task
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to add that task.')
+      return undefined
     } finally {
       setAddingTask(false)
     }
@@ -1024,6 +1025,22 @@ export function useJournalState() {
     }
   }
 
+  function startEditingTask(task: Task) {
+    setEditingTaskId(task.id)
+    setEditTaskText(task.goal_text)
+  }
+
+  async function saveTaskEdit(task: Task) {
+    const cleanText = editTaskText.trim()
+    if (!cleanText) return
+    if (cleanText === task.goal_text) {
+      setEditingTaskId(null)
+      return
+    }
+    const updated = await patchTask(task, { goal_text: cleanText })
+    if (updated) setEditingTaskId(null)
+  }
+
   async function acknowledgeHighlight(task: Task) {
     if (!userId) return
     try {
@@ -1042,6 +1059,9 @@ export function useJournalState() {
   }
 
   function handleTaskDragStart(event: DragEvent, taskId: string) {
+    // A section (category) reorder is in flight; leave its drag events to the
+    // section groups instead of treating them as task drags.
+    if (draggedSectionId) return
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', taskId)
     setDraggedTaskId(taskId)
@@ -1052,6 +1072,10 @@ export function useJournalState() {
   }
 
   function handleTaskDragOver(event: DragEvent, taskId: string) {
+    // While a section reorder is active, task rows must not swallow the drag
+    // events (stopPropagation / clearing the reorder target). Let them bubble
+    // up to the section group so the drop indicator keeps tracking the cursor.
+    if (draggedSectionId) return
     event.preventDefault()
     event.stopPropagation()
     event.dataTransfer.dropEffect = 'move'
@@ -1125,22 +1149,6 @@ export function useJournalState() {
 
   function openSectionForm() {
     setSectionFormOpen(true)
-    setEditingSectionId(null)
-    setNewSectionName('')
-    setNewSectionColor('forest')
-  }
-
-  function startEditingSection(section: TaskSection) {
-    setEditingSectionId(section.id)
-    setSectionFormOpen(false)
-    setNewSectionName(section.name)
-    setNewSectionColor(section.color)
-  }
-
-  function cancelSectionEdit() {
-    setEditingSectionId(null)
-    setSectionFormOpen(false)
-    setNewSectionName('')
   }
 
   async function addSection(name: string, color: string) {
@@ -1151,29 +1159,11 @@ export function useJournalState() {
     try {
       const created = await createSection(userId, clean, color)
       setSections((current) => [...current, created])
-      setNewSectionName('')
       setSectionFormOpen(false)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to add that section.')
     } finally {
       setAddingSection(false)
-    }
-  }
-
-  async function saveSectionEdit(sectionId: string, name: string, color: string) {
-    const clean = name.trim()
-    if (!userId || !clean) return
-    setError('')
-    try {
-      const updated = await updateSection(userId, sectionId, {
-        name: clean,
-        color,
-      })
-      setSections((current) => current.map((section) => (section.id === sectionId ? updated : section)))
-      setEditingSectionId(null)
-      setNewSectionName('')
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update that section.')
     }
   }
 
@@ -1208,9 +1198,13 @@ export function useJournalState() {
   }
 
   function handleSectionDragOver(event: DragEvent, key: string | 'unsectioned') {
-    // Reordering a section: only real sections are valid drop targets.
+    // Reordering a section: the whole group under the cursor is the drop zone
+    // (header, rows and all). The top half means "insert above this group",
+    // the bottom half means "insert below". The "Everything else" group is a
+    // shorthand for "move to the end of the category list".
     if (draggedSectionId) {
-      if (key === 'unsectioned' || draggedSectionId === key) {
+      if (draggedSectionId === key) {
+        // Hovering the section being dragged: no move, no indicator.
         setSectionReorderTarget(null)
         return
       }
@@ -1218,6 +1212,12 @@ export function useJournalState() {
       event.dataTransfer.dropEffect = 'move'
       setTaskDropTarget(null)
       setSectionDropTarget(null)
+      if (key === 'unsectioned') {
+        setSectionReorderTarget((current) => (
+          current?.id === 'unsectioned' ? current : { id: 'unsectioned', position: 'before' }
+        ))
+        return
+      }
       const rect = event.currentTarget.getBoundingClientRect()
       const position = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
       setSectionReorderTarget((current) => (
@@ -1254,21 +1254,34 @@ export function useJournalState() {
   }
 
   async function handleSectionReorderDrop(targetId: string, position: 'before' | 'after') {
-    if (!userId || !draggedSectionId || draggedSectionId === targetId) {
+    if (!userId || !draggedSectionId) {
       clearSectionReorderDrag()
       return
     }
-    const order = sections.map((section) => section.id)
-    const fromIndex = order.indexOf(draggedSectionId)
-    if (fromIndex === -1 || !order.includes(targetId)) {
+    const original = sections.map((section) => section.id)
+    const fromIndex = original.indexOf(draggedSectionId)
+    if (fromIndex === -1) {
       clearSectionReorderDrag()
       return
     }
+    const order = [...original]
     order.splice(fromIndex, 1)
-    let insertIndex = order.indexOf(targetId)
-    if (position === 'after') insertIndex += 1
-    order.splice(insertIndex, 0, draggedSectionId)
+    // targetId 'unsectioned' is set when dropping onto the "Everything else"
+    // group, which always sits at the bottom → move the section to the end.
+    if (targetId === 'unsectioned') {
+      order.push(draggedSectionId)
+    } else {
+      const targetIndex = order.indexOf(targetId)
+      if (targetIndex === -1) {
+        clearSectionReorderDrag()
+        return
+      }
+      order.splice(targetIndex + (position === 'after' ? 1 : 0), 0, draggedSectionId)
+    }
     clearSectionReorderDrag()
+
+    // Dropped back where it already was: nothing to save.
+    if (original.join('\u0000') === order.join('\u0000')) return
 
     const byId = new Map(sections.map((section) => [section.id, section]))
     setSections(order.map((id) => byId.get(id)).filter((section): section is TaskSection => Boolean(section)))
@@ -1986,16 +1999,16 @@ export function useJournalState() {
     setDateDraft, savingDate, saveDateEdit, deletingEntry, removeActiveEntry, entryListRef,
 
     // tasks
-    newTaskDraft, setNewTaskDraft, newTaskStartTime, setNewTaskStartTime, newTaskEndTime,
-    setNewTaskEndTime, newTaskSectionId, setNewTaskSectionId, addingTask, addManualTask,
+    newTaskDraft, setNewTaskDraft, newTaskSectionId, setNewTaskSectionId, addingTask, addManualTask,
+    addTaskToSection,
     taskFormOpen, setTaskFormOpen, snoozedOpen, setSnoozedOpen, updatingTaskId, patchTask,
+    editingTaskId, setEditingTaskId, editTaskText, setEditTaskText, startEditingTask, saveTaskEdit,
     acknowledgeHighlight, draggedTaskId, taskDropTarget, handleTaskDragStart, handleTaskDragOver,
     handleTaskDrop, clearTaskDrag,
 
     // task sections
-    sections, sectionFormOpen, setSectionFormOpen, openSectionForm, editingSectionId,
-    startEditingSection, cancelSectionEdit, newSectionName, setNewSectionName, newSectionColor,
-    setNewSectionColor, addingSection, addSection, saveSectionEdit, removeSection,
+    sections, sectionFormOpen, setSectionFormOpen, openSectionForm,
+    addingSection, addSection, removeSection,
     collapsedSectionIds, toggleSectionCollapsed, sectionDropTarget, handleSectionDragOver,
     handleSectionDrop, moveTaskToSection, draggedSectionId, sectionReorderTarget,
     handleSectionReorderDragStart, handleSectionReorderDrop, clearSectionReorderDrag,
