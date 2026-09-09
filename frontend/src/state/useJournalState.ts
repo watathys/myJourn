@@ -281,20 +281,36 @@ export function useJournalState() {
     [weeklyGoals],
   )
 
+  // Lookup for every task/goal the user could have planned, used to tell which
+  // planned ids still resolve to a live item. An id that no longer resolves was
+  // archived — the UI only offers archiving after a task is checked off, so the
+  // item was completed and should keep counting toward the day's progress.
+  const plannedById = useMemo(() => {
+    const byId = new Map<string, Task>()
+    for (const item of [...tasks, ...(weeklyGoals as unknown as Task[])]) {
+      if (!byId.has(item.id)) byId.set(item.id, item)
+    }
+    return byId
+  }, [tasks, weeklyGoals])
+
   const plannedTasks = useMemo(() => {
     if (!dailyPlan?.selected_task_ids.length) return []
-    const allItems = [...tasks, ...(weeklyGoals as unknown as Task[])]
-    const byId = new Map(allItems.map((item) => [item.id, item]))
     return dailyPlan.selected_task_ids
-      .map((id) => byId.get(id))
+      .map((id) => plannedById.get(id))
       .filter((task): task is Task => task !== undefined && task.status !== 'abandoned')
-  }, [dailyPlan, tasks, weeklyGoals])
+  }, [dailyPlan, plannedById])
 
   const plannedIds = useMemo(() => new Set(plannedTasks.map((task) => task.id)), [plannedTasks])
   const backlogTasks = useMemo(
     () => visibleTasks.filter((task) => !plannedIds.has(task.id)),
     [visibleTasks, plannedIds],
   )
+
+  // How many things the user picked for today. Unlike the "Today" list above,
+  // this keeps counting items that were completed and then archived: archiving
+  // only removes them from the working lists, not from the day's plan.
+  const plannedTodayCount =
+    dailyPlan && dailyPlan.date === todayIso ? dailyPlan.selected_task_ids.length : 0
 
   const planCompleted = Boolean(dailyPlan?.morning_completed_at && dailyPlan.date === todayIso)
 
@@ -340,7 +356,17 @@ export function useJournalState() {
     [lifeInsights],
   )
 
-  const doneTodayCount = plannedTasks.filter((task) => task.status === 'completed').length
+  const doneTodayCount = useMemo(() => {
+    if (!dailyPlan || dailyPlan.date !== todayIso) return 0
+    let done = 0
+    for (const id of dailyPlan.selected_task_ids) {
+      const item = plannedById.get(id)
+      // If the planned item is gone from the working lists it was archived,
+      // which is only offered after it has been checked off — count it as done.
+      if (!item || item.status === 'completed' || item.status === 'abandoned') done += 1
+    }
+    return done
+  }, [dailyPlan, todayIso, plannedById])
 
   /* ------------------------------------------------------------ data loading */
 
@@ -1981,7 +2007,7 @@ export function useJournalState() {
     // clock + day
     phase, todayIso, weekStart, dayState, planCompleted, dayPanelCollapsed, setDayPanelCollapsed,
     morningSelectedIds, toggleMorningTask, saveDayPlan, savingMorningPlan, planEditing, setPlanEditing,
-    startEditingPlan, todayEntry, doneTodayCount,
+    startEditingPlan, todayEntry, doneTodayCount, plannedTodayCount,
 
     // data
     entries, filteredEntries, search, setSearch, tasks, visibleTasks, snoozedTasks, plannedTasks,

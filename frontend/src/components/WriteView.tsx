@@ -12,7 +12,7 @@ export function WriteView() {
   const {
     draft, setDraft, entryDate, setEntryDate, appendTarget, saveVerbatim,
     setSaveVerbatim, generating, submitEntry, listening, toggleVoice, editorRef, userId, phase,
-    plannedTasks, visibleTasks, openGoals, doneTodayCount, activeEntry, continueThread,
+    plannedTasks, visibleTasks, openGoals, doneTodayCount, plannedTodayCount, activeEntry, continueThread,
     openComposer, goHome,
   } = useJournal()
 
@@ -111,9 +111,9 @@ export function WriteView() {
         </div>
       ) : (
         <div className="write-card editor-card">
-          {plannedTasks.length > 0 && (
+          {plannedTodayCount > 0 && (
             <p className="composer-context">
-              You picked {plannedTasks.length} {plannedTasks.length === 1 ? 'task' : 'tasks'} for today
+              You picked {plannedTodayCount} {plannedTodayCount === 1 ? 'task' : 'tasks'} for today
               and finished {doneTodayCount}.
             </p>
           )}

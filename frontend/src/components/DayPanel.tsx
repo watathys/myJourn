@@ -8,7 +8,8 @@ import { useJournal } from '../state/journalContext'
 /** The one prompt at the top of the home screen. It never hides tasks or goals. */
 export function DayPanel() {
   const {
-    dayState, phase, todayIso, todayEntry, plannedTasks, doneTodayCount, morningSelectedIds,
+    dayState, phase, todayIso, todayEntry, plannedTasks, doneTodayCount, plannedTodayCount,
+    morningSelectedIds,
     saveDayPlan, savingMorningPlan, planEditing, setPlanEditing, startEditingPlan, dailyPlan,
     openComposer, openEntry, dayPanelCollapsed, setDayPanelCollapsed, visibleTasks,
   } = useJournal()
@@ -29,14 +30,14 @@ export function DayPanel() {
 
   const subtitle = {
     plan: 'Pick the tasks you want to focus on today. A shorter list is easier to finish.',
-    focus: plannedTasks.length
-      ? `${doneTodayCount} of ${plannedTasks.length} done so far.`
+    focus: plannedTodayCount
+      ? `${doneTodayCount} of ${plannedTodayCount} done so far.`
       : 'Nothing picked for today yet — add a few tasks below whenever you like.',
     reflect: 'Check off what you finished below, then write tonight’s entry.',
     closed: todayEntry ? `${countWords(todayEntry.raw_transcript)} words written today.` : '',
   }[dayState]
 
-  const progress = plannedTasks.length ? Math.round((doneTodayCount / plannedTasks.length) * 100) : 0
+  const progress = plannedTodayCount ? Math.round((doneTodayCount / plannedTodayCount) * 100) : 0
 
   return (
     <section className={`day-panel day-panel-${dayState}`}>
@@ -62,7 +63,7 @@ export function DayPanel() {
         <div className="day-panel-body">
           {subtitle && <p className="day-panel-sub">{subtitle}</p>}
 
-          {dayState === 'focus' && plannedTasks.length > 0 && (
+          {dayState === 'focus' && plannedTodayCount > 0 && (
             <div className="progress-track" role="img" aria-label={`${progress}% of today's tasks done`}>
               <span style={{ width: `${progress}%` }} />
             </div>

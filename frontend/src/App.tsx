@@ -1,3 +1,5 @@
+import { Analytics } from '@vercel/analytics/react'
+import type { ReactNode } from 'react'
 import { Auth } from './Auth'
 import { AppShell } from './components/AppShell'
 import { JournalContext } from './state/journalContext'
@@ -7,21 +9,27 @@ import './App.css'
 export default function App() {
   const state = useJournalState()
 
+  let content: ReactNode
   if (state.authChecking) {
-    return (
+    content = (
       <div className="auth-container">
         <p className="auth-subtitle">Loading your journal...</p>
       </div>
     )
-  }
-
-  if (!state.sessionUser) {
-    return <Auth onAuthSuccess={() => {}} />
+  } else if (!state.sessionUser) {
+    content = <Auth onAuthSuccess={() => {}} />
+  } else {
+    content = (
+      <JournalContext.Provider value={state}>
+        <AppShell />
+      </JournalContext.Provider>
+    )
   }
 
   return (
-    <JournalContext.Provider value={state}>
-      <AppShell />
-    </JournalContext.Provider>
+    <>
+      <Analytics />
+      {content}
+    </>
   )
 }
