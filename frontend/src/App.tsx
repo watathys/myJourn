@@ -1,13 +1,17 @@
 import { Analytics } from '@vercel/analytics/react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Auth } from './Auth'
 import { AppShell } from './components/AppShell'
+import { LandingPage } from './components/LandingPage'
 import { JournalContext } from './state/journalContext'
 import { useJournalState } from './state/useJournalState'
 import './App.css'
 
+type AuthMode = 'signIn' | 'signUp'
+
 export default function App() {
   const state = useJournalState()
+  const [authMode, setAuthMode] = useState<AuthMode | null>(null)
 
   let content: ReactNode
   if (state.authChecking) {
@@ -17,7 +21,18 @@ export default function App() {
       </div>
     )
   } else if (!state.sessionUser) {
-    content = <Auth onAuthSuccess={() => {}} />
+    content = authMode ? (
+      <Auth
+        onAuthSuccess={() => {}}
+        initialMode={authMode}
+        onBack={() => setAuthMode(null)}
+      />
+    ) : (
+      <LandingPage
+        onSignIn={() => setAuthMode('signIn')}
+        onGetStarted={() => setAuthMode('signUp')}
+      />
+    )
   } else {
     content = (
       <JournalContext.Provider value={state}>

@@ -4,10 +4,12 @@ import { LogIn, UserPlus, Lock, Mail, AlertCircle, Sparkles } from 'lucide-react
 
 type AuthProps = {
   onAuthSuccess: () => void
+  initialMode?: 'signIn' | 'signUp'
+  onBack?: () => void
 }
 
-export function Auth({ onAuthSuccess }: AuthProps) {
-  const [isSignUp, setIsSignUp] = useState(false)
+export function Auth({ onAuthSuccess, initialMode = 'signIn', onBack }: AuthProps) {
+  const [isSignUp, setIsSignUp] = useState(initialMode === 'signUp')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -57,6 +59,11 @@ export function Auth({ onAuthSuccess }: AuthProps) {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        {onBack && (
+          <button type="button" className="auth-back" onClick={onBack}>
+            ← Back to home
+          </button>
+        )}
         <div className="auth-header">
           <div className="auth-logo">
             <Sparkles className="auth-logo-icon" />

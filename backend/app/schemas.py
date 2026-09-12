@@ -84,6 +84,7 @@ class TaskResponse(BaseModel):
     just_resurfaced: bool
     has_calendar_reminder: bool
     section_id: Optional[str] = None
+    archived_at: Optional[datetime] = None
 
 
 class SectionResponse(BaseModel):

@@ -76,6 +76,7 @@ from app.schemas import (
 )
 from app.services import google_calendar
 from app.services.daily_processing import DailyProcessingService
+from app.services.goal_helpers import cleanup_archived_tasks
 from app.services.percy_chat import chat_with_percy
 from app.services.percy_goal import create_goal_with_percy
 from app.services.schedule_parsing import (
@@ -299,6 +300,7 @@ def delete_journal_entry(
 
 
 def _list_tasks(session: Session, user_id: str) -> list[OpenLoopAndGoal]:
+    cleanup_archived_tasks(session, user_id)
     return list(
         session.scalars(
             select(OpenLoopAndGoal)
@@ -486,11 +488,18 @@ def update_task(
         task.current_count = max(0, min(task.target_count, payload.current_count))
         if task.current_count >= task.target_count:
             task.status = GoalStatus.COMPLETED
+            task.archived_at = None
         elif "status" not in fields_set or payload.status is None:
             task.status = GoalStatus.PENDING
+            task.archived_at = None
 
     if "status" in fields_set and payload.status is not None:
         task.status = payload.status
+        if payload.status == GoalStatus.ABANDONED:
+            if task.archived_at is None:
+                task.archived_at = datetime.now(timezone.utc)
+        else:
+            task.archived_at = None
         if payload.status == GoalStatus.COMPLETED:
             task.current_count = task.target_count
         elif payload.status == GoalStatus.PENDING and task.current_count >= task.target_count:
@@ -773,6 +782,7 @@ def list_goals(
     session: DbSession,
     week_start_date: Annotated[date, Query()],
 ) -> list[OpenLoopAndGoal]:
+    cleanup_archived_tasks(session, current_user_id)
     return list(
         session.scalars(
             select(OpenLoopAndGoal)
@@ -894,11 +904,18 @@ def update_goal(
         goal.current_count = max(0, min(goal.target_count, payload.current_count))
         if goal.current_count >= goal.target_count:
             goal.status = GoalStatus.COMPLETED
+            goal.archived_at = None
         elif "status" not in fields_set or payload.status is None:
             goal.status = GoalStatus.PENDING
+            goal.archived_at = None
 
     if "status" in fields_set and payload.status is not None:
         goal.status = payload.status
+        if payload.status == GoalStatus.ABANDONED:
+            if goal.archived_at is None:
+                goal.archived_at = datetime.now(timezone.utc)
+        else:
+            goal.archived_at = None
         if payload.status == GoalStatus.COMPLETED:
             goal.current_count = goal.target_count
         elif payload.status == GoalStatus.PENDING and goal.current_count >= goal.target_count:

@@ -35,7 +35,7 @@ from app.models import (
     User,
 )
 from app.services import google_calendar
-from app.services.goal_helpers import parse_target_count_from_text
+from app.services.goal_helpers import cleanup_archived_tasks, parse_target_count_from_text
 from app.services.retrieval import retrieve_similar_entries
 from app.services.schedule_parsing import parse_schedule_phrase
 from app.services.spelling import apply_spelling_corrections, get_user_spelling_corrections
@@ -105,6 +105,8 @@ class DailyProcessingService:
             raise ValueError("raw_transcript must contain non-whitespace text")
         if self._session.get(User, user_id) is None:
             raise LookupError(f"user {user_id!r} does not exist")
+
+        cleanup_archived_tasks(self._session, user_id)
 
         user_corrections = get_user_spelling_corrections(self._session, user_id)
         if user_corrections:

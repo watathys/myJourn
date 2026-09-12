@@ -228,6 +228,7 @@ class OpenLoopAndGoal(Base):
     __table_args__ = (
         Index("ix_goals_user_status_created", "user_id", "status", "created_at"),
         Index("ix_goals_user_kind_week", "user_id", "kind", "week_start_date"),
+        Index("ix_goals_archived_at", "archived_at"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -275,6 +276,9 @@ class OpenLoopAndGoal(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    archived_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     user: Mapped[User] = relationship(back_populates="goals")

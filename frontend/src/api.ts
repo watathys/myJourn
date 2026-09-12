@@ -13,6 +13,7 @@ export type Task = {
   just_resurfaced: boolean
   has_calendar_reminder: boolean
   section_id?: string | null
+  archived_at?: string | null
 }
 
 export type TaskSection = {
@@ -36,6 +37,7 @@ export type Goal = {
   is_snoozed?: boolean
   just_resurfaced?: boolean
   has_calendar_reminder?: boolean
+  archived_at?: string | null
 }
 
 export type JournalEntry = {
