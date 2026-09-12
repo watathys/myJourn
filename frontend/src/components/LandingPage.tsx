@@ -1,12 +1,13 @@
 import {
   ArrowRight,
   BookOpen,
+  CalendarClock,
   CalendarRange,
-  CircleCheck,
-  Compass,
-  Lightbulb,
+  ListChecks,
+  Lock,
   MessageCircle,
   PenLine,
+  ScanSearch,
   Sparkles,
   Sunrise,
   Target,
@@ -17,77 +18,104 @@ type LandingPageProps = {
   onGetStarted: () => void
 }
 
-const FEATURES = [
-  {
-    icon: PenLine,
-    title: 'Write without friction',
-    body: 'Type or speak — no structure, no formatting, no pressure. Just dump whatever is in your head.',
-  },
-  {
-    icon: Sparkles,
-    title: 'Percy reads it back',
-    body: 'Your rough notes become a clean narrative and a kind reflection, with questions that take you deeper.',
-  },
-  {
-    icon: Sunrise,
-    title: 'A gentle daily rhythm',
-    body: 'Plan your morning, focus your day, and reflect at night — one quiet ritual that keeps you honest.',
-  },
-  {
-    icon: Target,
-    title: 'Tasks & goals that stick',
-    body: 'Turn reflections into intentions, and track what you actually finish — without the guilt.',
-  },
-  {
-    icon: CalendarRange,
-    title: 'A weekly reset',
-    body: 'A planning and reflection session each week keeps the long view in focus, not just the day-to-day.',
-  },
-  {
-    icon: Lightbulb,
-    title: 'Insights over time',
-    body: 'Percy notices patterns, wins, and threads across your entries that you would never spot yourself.',
-  },
-]
-
-const WHY = [
-  {
-    icon: Compass,
-    title: 'Clarity',
-    body: 'See where your energy really goes. The gap between the days you want and the days you live becomes visible.',
-  },
-  {
-    icon: Target,
-    title: 'Alignment',
-    body: 'Hold each day against what matters to you. A gentle north star keeps small decisions pointing the same way.',
-  },
-  {
-    icon: BookOpen,
-    title: 'Memory',
-    body: 'Build a searchable story of your own life — the wins, the hard weeks, the ordinary Tuesdays.',
-  },
-  {
-    icon: CircleCheck,
-    title: 'Momentum',
-    body: 'Turn reflection into action. Insights become goals, and goals get tracked as they actually happen.',
-  },
-]
-
 const STEPS = [
   {
     num: '01',
-    title: 'Write',
-    body: 'Spend two minutes dumping whatever is on your mind. No editing, no structure.',
+    title: 'Write it down',
+    body: 'Two minutes, no structure. Type it or say it out loud. Your words are saved exactly as you wrote them unless you ask Percy to clean them up.',
   },
   {
     num: '02',
-    title: 'Reflect',
-    body: 'Percy turns it into a smooth narrative and a reflection, in your own voice.',
+    title: 'Percy connects the days',
+    body: 'Every entry gets read against the last two weeks, plus anything similar from further back. Percy is looking for the thing that keeps happening.',
   },
   {
     num: '03',
-    title: 'Notice',
-    body: 'Patterns, wins, and follow-up questions surface over time, so you can course-correct.',
+    title: 'You get one change to make',
+    body: 'When the same thread shows up across three separate days, Percy names it out loud and suggests one practical thing to do differently.',
+  },
+  {
+    num: '04',
+    title: 'Weekly planning makes it real',
+    body: 'Each week you read your week back, set goals with numbers on them, and clear the backlog — so the change has somewhere to land.',
+  },
+]
+
+const INSIGHTS = [
+  {
+    pattern:
+      'Three of your last four rough days started with a 6am alarm you snoozed twice. The good ones started later, on purpose.',
+    change: 'Set the alarm for when you actually get up, and stop paying for the fight.',
+  },
+  {
+    pattern:
+      'You have written about calling your brother on five separate days this month. Every one of those days you also described as slammed.',
+    change: 'Move it to a Sunday walk instead of a weekday gap that never opens.',
+  },
+  {
+    pattern:
+      'Every plan you dropped in the last three weeks was one you made for after 8pm. The morning ones you kept.',
+    change: 'Put the thing that matters before work, not after it.',
+  },
+]
+
+const WEEKLY = [
+  {
+    title: 'Read your week back',
+    body: 'Percy writes up what actually happened — the wins, the parts that were hard — so you are not planning from memory.',
+  },
+  {
+    title: 'See the patterns',
+    body: 'The threads that ran through the week, pulled from your own entries rather than a template.',
+  },
+  {
+    title: 'Pick one or two focuses',
+    body: 'Percy suggests them from your week, not from a list of generic advice.',
+  },
+  {
+    title: 'Set goals with a count',
+    body: 'Run 3x. Cook 4 nights. A checkbox you tick, not a wish you forget.',
+  },
+  {
+    title: 'Review last week honestly',
+    body: 'What you said you would do, next to what you did. No spin.',
+  },
+  {
+    title: 'Clear the backlog',
+    body: 'Everything you have been carrying in one list, so nothing quietly rots.',
+  },
+]
+
+const FEATURES = [
+  {
+    icon: PenLine,
+    title: 'Write however it comes out',
+    body: 'Type or talk. No prompts, no formatting, no streak to protect. Saved verbatim by default — ask for a polished narrative when you want one.',
+  },
+  {
+    icon: ListChecks,
+    title: 'Tasks pull themselves out',
+    body: 'Mention that you still need to email your landlord and it lands in What I\u2019m Working On. Reorder it, snooze it, or schedule it.',
+  },
+  {
+    icon: Sunrise,
+    title: 'Bookend the day',
+    body: 'Pick your handful of tasks in the morning, write your reflection at night. That is the entire ritual.',
+  },
+  {
+    icon: Target,
+    title: 'A north star, if you want one',
+    body: 'Name what you are aiming at and every entry gets held against it — gently, not as a scoreboard.',
+  },
+  {
+    icon: CalendarClock,
+    title: 'Reminders that leave the app',
+    body: 'Say “Percy, remind me Thursday at 9” and it lands on your Google Calendar with the rest of your life.',
+  },
+  {
+    icon: Lock,
+    title: 'Yours only',
+    body: 'Your entries are private to your account. Percy reads them to help you — nothing is public, nothing is shared.',
   },
 ]
 
@@ -102,9 +130,9 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
           </a>
 
           <nav className="landing-nav" aria-label="Primary">
-            <a href="#features">Features</a>
             <a href="#how-it-works">How it works</a>
-            <a href="#why">Why journal</a>
+            <a href="#insights">Insights</a>
+            <a href="#weekly">Weekly planning</a>
           </nav>
 
           <div className="landing-header-actions">
@@ -122,12 +150,13 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
         <section className="landing-hero">
           <div className="landing-container landing-hero-grid">
             <div className="landing-hero-copy">
-              <p className="landing-eyebrow"><Sparkles /> Your life, reflected back</p>
-              <h1 className="landing-h1">Write your day. Understand your life.</h1>
+              <p className="landing-eyebrow"><ScanSearch /> Journaling that talks back</p>
+              <h1 className="landing-h1">Write your day. Find out what to change.</h1>
               <p className="landing-hero-sub">
-                Bookends is a private, AI-assisted journal that turns your daily notes into a
-                clear narrative, surfaces the patterns you'd miss, and keeps you aligned with
-                what actually matters.
+                Bookends is a journal that does something with what you write. Percy reads your
+                entries, connects them across weeks, and names the pattern quietly running your
+                life — then tells you the one thing to do differently. Weekly planning turns it
+                into a plan you actually finish.
               </p>
               <div className="landing-hero-ctas">
                 <button type="button" className="landing-primary landing-primary-lg" onClick={onGetStarted}>
@@ -140,27 +169,124 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
             </div>
 
             <div className="landing-hero-preview" aria-hidden="true">
-              <div className="landing-preview-note">
-                <span className="landing-preview-label">You write</span>
-                <p>“Work was a blur. Cooked dinner, called Mom, finally went for a run.”</p>
+              <span className="landing-preview-label">Three ordinary entries</span>
+              <div className="landing-preview-days">
+                <p className="landing-preview-day"><span>Mon</span> Work ran long, skipped the gym again.</p>
+                <p className="landing-preview-day"><span>Wed</span> Too fried to cook, ordered in.</p>
+                <p className="landing-preview-day"><span>Fri</span> Another late one at the desk.</p>
               </div>
+
               <div className="landing-preview-arrow">
                 <ArrowRight />
               </div>
-              <div className="landing-preview-narrative">
-                <span className="landing-preview-label">Percy reflects</span>
-                <p>A busy day with a quiet win: you kept a promise to yourself and ran.</p>
-                <span className="landing-preview-chip"><Sparkles /> Pattern noticed: evening runs stick</span>
+
+              <div className="landing-preview-insight">
+                <span className="landing-preview-label"><Sparkles /> Percy noticed</span>
+                <p className="landing-insight-pattern">
+                  Three times in two weeks, a late night at work has wiped out whatever you had
+                  planned for yourself that evening.
+                </p>
+                <p className="landing-insight-change">
+                  <strong>Try this:</strong> move the thing you care about to the morning, before
+                  work gets a vote.
+                </p>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="landing-section" id="features">
+        <section className="landing-section" id="how-it-works">
+          <div className="landing-container">
+            <div className="landing-section-head">
+              <p className="landing-eyebrow">How it works</p>
+              <h2 className="landing-h2">Two minutes in. A specific change out.</h2>
+              <p className="landing-lead">
+                You do the easy part. Percy does the part no one can do for themselves — reading
+                weeks of their own life at once and seeing the shape of it.
+              </p>
+            </div>
+            <ol className="landing-steps landing-steps-4">
+              {STEPS.map(({ num, title, body }) => (
+                <li className="landing-step" key={num}>
+                  <span className="landing-step-num" aria-hidden="true">{num}</span>
+                  <h3>{title}</h3>
+                  <p>{body}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section className="landing-section landing-section-alt" id="insights">
+          <div className="landing-container">
+            <div className="landing-section-head">
+              <p className="landing-eyebrow">Life insights</p>
+              <h2 className="landing-h2">It isn't about the writing. It's what the writing reveals.</h2>
+              <p className="landing-lead">
+                You already know what happened yesterday. What you can't see is the shape of the
+                last three weeks — the same excuse in three different outfits, the gap between
+                what you say you want and how the evenings actually go.
+              </p>
+            </div>
+
+            <div className="landing-insights">
+              {INSIGHTS.map(({ pattern, change }) => (
+                <article className="landing-insight" key={pattern}>
+                  <span className="landing-feature-icon"><Sparkles /></span>
+                  <p className="landing-insight-pattern">{pattern}</p>
+                  <p className="landing-insight-change">
+                    <strong>Try this:</strong> {change}
+                  </p>
+                </article>
+              ))}
+            </div>
+
+            <p className="landing-note">
+              <ScanSearch />
+              <span>
+                Percy holds a high bar. The same thread has to show up across at least three
+                separate days, and it has to tell you something you haven't already told yourself.
+                Most days there is nothing worth saying — so Percy says nothing. This is an audit,
+                not a daily horoscope.
+              </span>
+            </p>
+          </div>
+        </section>
+
+        <section className="landing-section" id="weekly">
+          <div className="landing-container landing-why-grid">
+            <div className="landing-section-head landing-why-copy">
+              <p className="landing-eyebrow"><CalendarRange /> Weekly planning</p>
+              <h2 className="landing-h2">The half hour that makes the week work</h2>
+              <p className="landing-lead">
+                Insight is cheap until it hits a calendar. Once a week you sit down with your own
+                week written up in front of you, decide what the next one is for, and walk out with
+                a short list you can actually finish. Anything you asked Percy to bring up during
+                the week is waiting here too.
+              </p>
+              <div className="landing-hero-ctas landing-weekly-cta">
+                <button type="button" className="landing-primary" onClick={onGetStarted}>
+                  Plan your first week <ArrowRight />
+                </button>
+              </div>
+            </div>
+
+            <ol className="landing-weekly-list">
+              {WEEKLY.map(({ title, body }) => (
+                <li className="landing-weekly-item" key={title}>
+                  <h3>{title}</h3>
+                  <p>{body}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section className="landing-section landing-section-alt" id="features">
           <div className="landing-container">
             <div className="landing-section-head">
               <p className="landing-eyebrow">What's inside</p>
-              <h2 className="landing-h2">Built to notice what you'd miss on your own</h2>
+              <h2 className="landing-h2">Everything else stays out of your way</h2>
             </div>
             <div className="landing-grid">
               {FEATURES.map(({ icon: Icon, title, body }) => (
@@ -174,69 +300,25 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
           </div>
         </section>
 
-        <section className="landing-section landing-section-alt" id="how-it-works">
-          <div className="landing-container">
-            <div className="landing-section-head">
-              <p className="landing-eyebrow">How it works</p>
-              <h2 className="landing-h2">Two minutes a day is enough</h2>
-              <p className="landing-lead">
-                No streaks to maintain, no blank page to fear. Just a small, honest habit.
-              </p>
-            </div>
-            <ol className="landing-steps">
-              {STEPS.map(({ num, title, body }) => (
-                <li className="landing-step" key={num}>
-                  <span className="landing-step-num" aria-hidden="true">{num}</span>
-                  <h3>{title}</h3>
-                  <p>{body}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        <section className="landing-section" id="why">
-          <div className="landing-container landing-why-grid">
-            <div className="landing-section-head landing-why-copy">
-              <p className="landing-eyebrow">Why journal</p>
-              <h2 className="landing-h2">One honest day at a time</h2>
-              <p className="landing-lead">
-                Bookends isn't a productivity tracker. It's a quiet place to write what actually
-                happened — then see the patterns underneath.
-              </p>
-            </div>
-            <div className="landing-why-list">
-              {WHY.map(({ icon: Icon, title, body }) => (
-                <div className="landing-why-item" key={title}>
-                  <span className="landing-feature-icon"><Icon /></span>
-                  <div>
-                    <h3>{title}</h3>
-                    <p>{body}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="landing-section landing-section-alt" id="percy">
+        <section className="landing-section" id="percy">
           <div className="landing-container">
             <div className="landing-percy">
               <div className="landing-section-head">
                 <p className="landing-eyebrow"><MessageCircle /> Meet Percy</p>
-                <h2 className="landing-h2">Your journal, read back to you</h2>
+                <h2 className="landing-h2">Or just ask directly</h2>
                 <p className="landing-lead">
-                  Percy turns a raw brain-dump into a clean narrative and a kind reflection, then
-                  remembers the threads across weeks so you don't have to. Ask anything, anytime.
+                  Percy has read everything you have written. Ask why last month felt so heavy,
+                  whether you are actually making progress on the thing you keep mentioning, or
+                  what to do about the decision you keep circling. Keep the answers that land.
                 </p>
               </div>
               <div className="landing-percy-chat" aria-hidden="true">
                 <div className="landing-chat-bubble landing-chat-user">
-                  I keep putting off the same three things every week.
+                  Why do I keep bailing on my own plans?
                 </div>
                 <div className="landing-chat-bubble landing-chat-percy">
-                  That's been true for three weeks now. What tends to happen right before you
-                  postpone them?
+                  Every plan you dropped this month was one you made for after 8pm. The morning
+                  ones you kept, all of them. What if the plan is fine and the hour isn't?
                 </div>
               </div>
             </div>
@@ -246,9 +328,9 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
         <section className="landing-section" id="get-started">
           <div className="landing-container">
             <div className="landing-cta">
-              <h2 className="landing-h2">Your story is already being written</h2>
+              <h2 className="landing-h2">You already know something needs to change</h2>
               <p className="landing-lead">
-                Start tonight. Two minutes is enough — the rest unfolds from there.
+                Write tonight. Give it a week, and Percy will tell you what it is.
               </p>
               <div className="landing-hero-ctas">
                 <button type="button" className="landing-primary landing-primary-lg" onClick={onGetStarted}>
@@ -270,11 +352,11 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
             <span className="landing-brand-name">Bookends</span>
           </a>
           <nav className="landing-nav" aria-label="Footer">
-            <a href="#features">Features</a>
             <a href="#how-it-works">How it works</a>
-            <a href="#why">Why journal</a>
+            <a href="#insights">Insights</a>
+            <a href="#weekly">Weekly planning</a>
           </nav>
-          <p className="landing-footer-note">A private, AI-assisted journal. © 2026 Bookends.</p>
+          <p className="landing-footer-note">A private journal that tells you what to change. © 2026 Bookends.</p>
         </div>
       </footer>
     </div>

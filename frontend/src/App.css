@@ -2458,20 +2458,10 @@ textarea {
   box-shadow: var(--shadow-3);
 }
 
-.landing-preview-note,
-.landing-preview-narrative {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  padding: var(--s-4);
-  border-radius: var(--r-lg);
-}
-
-.landing-preview-note { background: var(--surface-sunk); }
-
-.landing-preview-narrative { background: var(--accent-soft); }
-
 .landing-preview-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--t-xs);
   font-weight: 700;
   letter-spacing: .08em;
@@ -2479,16 +2469,38 @@ textarea {
   color: var(--muted);
 }
 
-.landing-preview-note p,
-.landing-preview-narrative p {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 1.05rem;
-  line-height: 1.5;
-  color: var(--ink);
+.landing-preview-label svg { width: 13px; height: 13px; }
+
+.landing-preview-days {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
 }
 
-.landing-preview-note p { color: var(--ink-soft); }
+.landing-preview-day {
+  display: flex;
+  gap: var(--s-3);
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-sunk);
+  font-family: var(--serif);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.landing-preview-day span {
+  flex-shrink: 0;
+  font-family: var(--sans, inherit);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-top: 3px;
+}
 
 .landing-preview-arrow {
   display: flex;
@@ -2502,20 +2514,16 @@ textarea {
   transform: rotate(90deg);
 }
 
-.landing-preview-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  padding: 6px 10px;
-  border-radius: var(--r-full);
-  background: var(--surface);
-  color: var(--accent-ink);
-  font-size: var(--t-xs);
-  font-weight: 600;
+.landing-preview-insight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
 }
 
-.landing-preview-chip svg { width: 13px; height: 13px; }
+.landing-preview-insight .landing-preview-label { color: var(--accent-ink); }
 
 /* Sections */
 .landing-section { padding: var(--s-8) 0; }
@@ -2578,7 +2586,7 @@ textarea {
 
 .landing-feature h3,
 .landing-step h3,
-.landing-why-item h3 {
+.landing-weekly-item h3 {
   margin: 0 0 var(--s-2);
   font-family: var(--serif);
   font-size: var(--t-lg);
@@ -2588,7 +2596,7 @@ textarea {
 
 .landing-feature p,
 .landing-step p,
-.landing-why-item p {
+.landing-weekly-item p {
   margin: 0;
   font-size: var(--t-md);
   line-height: 1.6;
@@ -2605,10 +2613,16 @@ textarea {
   gap: var(--s-5);
 }
 
+.landing-steps-4 { grid-template-columns: repeat(4, 1fr); gap: var(--s-4); }
+
 .landing-step {
   padding-left: var(--s-5);
   border-left: 1px solid var(--line-strong);
 }
+
+.landing-steps-4 .landing-step { padding-left: var(--s-4); }
+
+.landing-steps-4 .landing-step-num { font-size: var(--t-2xl); }
 
 .landing-step-num {
   display: block;
@@ -2620,7 +2634,67 @@ textarea {
   color: var(--accent);
 }
 
-/* Why */
+/* Life insights */
+.landing-insights {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-4);
+}
+
+.landing-insight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.landing-insight .landing-feature-icon { margin-bottom: 0; }
+
+.landing-insight-pattern {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.landing-insight-change {
+  margin: 0;
+  margin-top: auto;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+  font-size: var(--t-md);
+  line-height: 1.55;
+  color: var(--accent-ink);
+}
+
+.landing-insight-change strong { font-weight: 700; }
+
+.landing-note {
+  display: flex;
+  gap: var(--s-3);
+  margin: var(--s-5) 0 0;
+  padding: var(--s-4) var(--s-5);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  font-size: var(--t-md);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.landing-note svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+/* Weekly planning */
 .landing-why-grid {
   display: grid;
   grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
@@ -2630,23 +2704,47 @@ textarea {
 
 .landing-why-copy .landing-lead { margin: 0; }
 
-.landing-why-list {
+.landing-weekly-cta { margin-top: var(--s-5); }
+
+.landing-weekly-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: weekly;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--s-4);
 }
 
-.landing-why-item {
-  display: flex;
-  gap: var(--s-4);
+.landing-weekly-item {
+  position: relative;
   padding: var(--s-4);
+  padding-top: var(--s-5);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
   box-shadow: var(--shadow-1);
+  counter-increment: weekly;
 }
 
-.landing-why-item .landing-feature-icon { flex-shrink: 0; margin-bottom: 0; }
+.landing-weekly-item::before {
+  content: counter(weekly);
+  position: absolute;
+  top: var(--s-4);
+  right: var(--s-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--t-xs);
+  font-weight: 700;
+}
+
+.landing-weekly-item h3 { padding-right: var(--s-5); }
 
 /* Percy */
 .landing-percy {
@@ -2743,7 +2841,9 @@ textarea {
 /* Responsive */
 @media (max-width: 900px) {
   .landing-hero-grid { grid-template-columns: 1fr; }
-  .landing-grid { grid-template-columns: repeat(2, 1fr); }
+  .landing-grid,
+  .landing-insights,
+  .landing-steps-4 { grid-template-columns: repeat(2, 1fr); }
   .landing-why-grid,
   .landing-percy { grid-template-columns: 1fr; }
 }
@@ -2783,9 +2883,12 @@ textarea {
 
   .landing-grid,
   .landing-steps,
-  .landing-why-list { grid-template-columns: 1fr; }
+  .landing-steps-4,
+  .landing-insights,
+  .landing-weekly-list { grid-template-columns: 1fr; }
 
-  .landing-step { padding-left: 0; border-left: none; }
+  .landing-step,
+  .landing-steps-4 .landing-step { padding-left: 0; border-left: none; }
 
   .landing-hero-ctas .landing-primary,
   .landing-hero-ctas .landing-secondary { width: 100%; }
