@@ -131,7 +131,7 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
               </p>
               <div className="landing-hero-ctas">
                 <button type="button" className="landing-primary landing-primary-lg" onClick={onGetStarted}>
-                  Start journaling free <ArrowRight />
+                  Start journaling <ArrowRight />
                 </button>
                 <a href="#how-it-works" className="landing-secondary">
                   See how it works
@@ -160,10 +160,7 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
           <div className="landing-container">
             <div className="landing-section-head">
               <p className="landing-eyebrow">What's inside</p>
-              <h2 className="landing-h2">Everything you need to audit your life, gently</h2>
-              <p className="landing-lead">
-                Bookends is built around one loop: write honestly, reflect kindly, notice clearly.
-              </p>
+              <h2 className="landing-h2">Built to notice what you'd miss on your own</h2>
             </div>
             <div className="landing-grid">
               {FEATURES.map(({ icon: Icon, title, body }) => (
@@ -202,7 +199,7 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
           <div className="landing-container landing-why-grid">
             <div className="landing-section-head landing-why-copy">
               <p className="landing-eyebrow">Why journal</p>
-              <h2 className="landing-h2">A life audit, one honest day at a time</h2>
+              <h2 className="landing-h2">One honest day at a time</h2>
               <p className="landing-lead">
                 Bookends isn't a productivity tracker. It's a quiet place to write what actually
                 happened — then see the patterns underneath.
@@ -255,7 +252,7 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
               </p>
               <div className="landing-hero-ctas">
                 <button type="button" className="landing-primary landing-primary-lg" onClick={onGetStarted}>
-                  Start journaling free <ArrowRight />
+                  Start journaling <ArrowRight />
                 </button>
                 <button type="button" className="landing-secondary" onClick={onSignIn}>
                   Sign in
