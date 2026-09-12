@@ -111,6 +111,7 @@ def test_goal_praise_and_no_mission_flow_end_to_end(
             "user_id": user_id,
             "date": date(2026, 7, 20).isoformat(),
             "raw_transcript": "I plan to run 3 miles tomorrow. Private Monday detail: marigold.",
+            "verbatim": False,
         },
     )
 
@@ -133,6 +134,7 @@ def test_goal_praise_and_no_mission_flow_end_to_end(
             "user_id": user_id,
             "date": date(2026, 7, 21).isoformat(),
             "raw_transcript": "Ran my 3 miles this morning.",
+            "verbatim": False,
         },
     )
 

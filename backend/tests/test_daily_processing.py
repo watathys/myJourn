@@ -77,7 +77,7 @@ def test_processes_without_mission_and_preserves_raw_transcript(session: Session
     assert "missing mission" not in result.journal_entry.alignment_summary.casefold()
     assert result.journal_entry.raw_transcript == raw
     assert result.new_goals[0].goal_text == "Book the dentist"
-    assert result.display_text.startswith("Today was messy")
+    assert result.display_text.strip().startswith("Today was messy")
 
 
 def test_appends_thread_response_to_existing_entry(session: Session) -> None:
@@ -114,6 +114,7 @@ def test_appends_thread_response_to_existing_entry(session: Session) -> None:
         entry_date=entry.date,
         raw_transcript="What changed later?\n\nI had a helpful conversation.",
         append_to_entry_id=entry.id,
+        verbatim=False,
     )
 
     assert result.journal_entry.id == entry.id

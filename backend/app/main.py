@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -13,6 +14,23 @@ from app.db import engine
 from app.rls import clear_rls_user_id
 
 logger = logging.getLogger(__name__)
+
+
+def _run_migrations() -> None:
+    """Run Alembic migrations automatically at boot to keep database schema up to date."""
+    try:
+        from alembic.config import Config
+        from alembic import command
+
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        project_root = os.path.dirname(backend_dir)
+        ini_path = os.path.join(project_root, "alembic.ini")
+        if os.path.exists(ini_path):
+            cfg = Config(ini_path)
+            command.upgrade(cfg, "head")
+            logger.info("Database migrations applied successfully")
+    except Exception as exc:
+        logger.warning("Could not auto-run database migrations: %s", exc)
 
 
 def _check_token_verification_configured() -> None:
@@ -34,6 +52,7 @@ def _check_token_verification_configured() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     engine.dispose()
+    _run_migrations()
     _check_token_verification_configured()
     yield
 

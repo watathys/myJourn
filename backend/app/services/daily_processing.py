@@ -122,8 +122,8 @@ class DailyProcessingService:
                 raise ValueError("appended text must use the journal entry's date")
             if is_import:
                 raise ValueError("imported entries cannot append to an existing entry")
-        if is_import and verbatim:
-            raise ValueError("verbatim cannot be combined with import")
+        if is_import:
+            verbatim = False
 
         mission = self._session.scalar(
             select(MissionStatement.statement_text).where(MissionStatement.user_id == user_id)

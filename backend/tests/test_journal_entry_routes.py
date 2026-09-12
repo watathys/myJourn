@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from app.api.dependencies import set_test_user_id
 from app.models import (
@@ -275,9 +275,10 @@ def test_list_update_and_reorder_tasks(client: TestClient, session: Session) -> 
     assert scheduled.status_code == 200
     assert scheduled.json()["remind_at"] is not None
 
+    snoozed_date = (date.today() + timedelta(days=5)).isoformat()
     snoozed = client.patch(
         f"/api/tasks/{second.id}",
-        json={"user_id": user.id, "snoozed_until": "2026-09-01"},
+        json={"user_id": user.id, "snoozed_until": snoozed_date},
     )
     assert snoozed.status_code == 200
     assert snoozed.json()["is_snoozed"] is True

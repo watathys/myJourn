@@ -47,12 +47,26 @@ def _resolve_rls_user_id(
     return get_rls_user_id() or ""
 
 
+def _apply_rls_to_connection(conn: Connection, resolved: str) -> None:
+    """Safely apply RLS role and app.current_user_id setting to a Postgres connection."""
+    try:
+        conn.execute(text("SAVEPOINT rls_role"))
+        conn.execute(text("SET LOCAL ROLE myjourn_app"))
+        conn.execute(text("RELEASE SAVEPOINT rls_role"))
+    except Exception:
+        try:
+            conn.execute(text("ROLLBACK TO SAVEPOINT rls_role"))
+        except Exception:
+            pass
+
+    conn.execute(text("SELECT set_config('app.current_user_id', :uid, true)"), {"uid": resolved})
+
+
 def apply_rls_settings(
     target: Session | Connection, user_id: Optional[str] = None
 ) -> None:
     """Push current request user id into Postgres and switch role to myjourn_app for RLS."""
 
-    stmt = text("SET LOCAL ROLE myjourn_app; SELECT set_config('app.current_user_id', :uid, true)")
     resolved = _resolve_rls_user_id(target, user_id)
 
     if isinstance(target, Session):
@@ -67,7 +81,7 @@ def apply_rls_settings(
                 conn.info[_RLS_USER_INFO_KEY] = resolved
             if conn.info.get(_RLS_BOUND_KEY) == resolved:
                 return
-            conn.execute(stmt, {"uid": resolved})
+            _apply_rls_to_connection(conn, resolved)
             conn.info[_RLS_BOUND_KEY] = resolved
         except Exception:
             pass
@@ -79,7 +93,7 @@ def apply_rls_settings(
             conn.info[_RLS_USER_INFO_KEY] = resolved
         if conn.info.get(_RLS_BOUND_KEY) == resolved:
             return
-        conn.execute(stmt, {"uid": resolved})
+        _apply_rls_to_connection(conn, resolved)
         conn.info[_RLS_BOUND_KEY] = resolved
 
 
