@@ -54,7 +54,6 @@ def test_processes_without_mission_and_preserves_raw_transcript(session: Session
             alignment_summary="What I'm Working On\n\n- Book the dentist.",
             context_summary="Called Mom; intends to book the dentist.",
             completed_goal_ids=[],
-            new_goals=["Book the dentist"],
             follow_up_questions=[
                 generated(
                     "What would make booking the dentist easier?",
@@ -76,7 +75,9 @@ def test_processes_without_mission_and_preserves_raw_transcript(session: Session
     assert "Their personal focus right now:" not in ai.system_prompt
     assert "missing mission" not in result.journal_entry.alignment_summary.casefold()
     assert result.journal_entry.raw_transcript == raw
-    assert result.new_goals[0].goal_text == "Book the dentist"
+    # A passing mention ("Need to book the dentist") must never become a task.
+    assert result.new_goals == ()
+    assert session.scalar(select(func.count(OpenLoopAndGoal.id))) == 0
     assert result.display_text.strip().startswith("Today was messy")
 
 
@@ -100,7 +101,6 @@ def test_appends_thread_response_to_existing_entry(session: Session) -> None:
             alignment_summary="What I'm Working On\n\nKeep communicating clearly.",
             context_summary="Had a helpful conversation later.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("What made the conversation helpful?", QuestionDimension.SOCIAL),
                 generated("What do you want to remember from it?"),
@@ -166,7 +166,6 @@ def test_completes_only_supplied_goal_and_adds_specific_praise(session: Session)
             ),
             context_summary="Completed the morning workout despite feeling tired.",
             completed_goal_ids=[goal.id, "not-a-real-goal"],
-            new_goals=[],
             follow_up_questions=[
                 generated("What helped you start the workout?", QuestionDimension.PHYSICAL),
                 generated("What would make tomorrow easier?"),
@@ -217,7 +216,6 @@ def test_prompt_uses_only_summaries_from_previous_14_days(session: Session) -> N
             alignment_summary="What I'm Working On\n\nKeep going.",
             context_summary="A compact summary of today.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("What mattered today?", QuestionDimension.SPIRITUAL),
                 generated("What comes next?"),
@@ -283,7 +281,6 @@ def test_supplies_asked_at_coverage_latest_15_and_persists_canonical_rows(
             alignment_summary="What I'm Working On\n\nKeep moving.",
             context_summary="Took a reflective walk.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("How did your body feel after the walk?", QuestionDimension.PHYSICAL),
                 generated(
@@ -354,7 +351,6 @@ def test_rejects_normalized_recent_and_in_batch_duplicates(session: Session) -> 
                 alignment_summary="What I'm Working On",
                 context_summary="Today.",
                 completed_goal_ids=[],
-                new_goals=[],
                 follow_up_questions=questions,
                 answered_follow_up_question_ids=[],
             )
@@ -399,7 +395,6 @@ def test_marks_only_eligible_yesterday_unanswered_questions(session: Session) ->
             alignment_summary="What I'm Working On",
             context_summary="Found a calmer approach.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("What made the calmer approach possible?"),
                 generated("Where could you use that approach next?"),
@@ -435,7 +430,6 @@ def test_prompt_requires_grounding_and_does_not_force_social_dimension(
             alignment_summary="What I'm Working On",
             context_summary="Poor sleep affected focus.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("How did poor sleep show up in your body?", QuestionDimension.PHYSICAL),
                 generated("What made focusing hardest today?", QuestionDimension.MENTAL),
@@ -487,7 +481,6 @@ def test_prompt_instructs_life_audit_and_diagnostic_follow_ups(session: Session)
             alignment_summary="What I'm Working On",
             context_summary="Still sick while playing volleyball daily.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("What do you do to unwind at night?", QuestionDimension.PHYSICAL),
                 generated(
@@ -542,7 +535,6 @@ def test_seven_day_policy_simulation_rotates_without_repeats(session: Session) -
                 alignment_summary="What I'm Working On",
                 context_summary=f"Anchored reflection day {self.day}.",
                 completed_goal_ids=[],
-                new_goals=[],
                 follow_up_questions=[
                     generated(
                         f"What stands out about the {dimension.value} detail on day {self.day}?",
@@ -617,7 +609,6 @@ def test_manually_set_goals_with_no_entry_surface_regardless_of_window(
             alignment_summary="What I'm Working On",
             context_summary="Today.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("What helped today?"),
                 generated("What felt hard?"),
@@ -646,7 +637,6 @@ def test_persists_percy_reminders_and_life_insights(session: Session) -> None:
             alignment_summary="What I'm Working On",
             context_summary="Complained more than usual today.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("What triggered the complaining today?", QuestionDimension.MENTAL),
                 generated("How did it feel afterward?", QuestionDimension.SOCIAL),
@@ -692,7 +682,6 @@ def test_life_insight_cooldown_discards_recent_insights(session: Session) -> Non
             alignment_summary="Working hard",
             context_summary="Day 1 context",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("Question 1"),
                 generated("Question 2"),
@@ -717,7 +706,6 @@ def test_life_insight_cooldown_discards_recent_insights(session: Session) -> Non
             alignment_summary="Working hard",
             context_summary="Day 2 context",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("Question 3"),
                 generated("Question 4"),
@@ -748,7 +736,6 @@ def test_life_insight_cooldown_discards_recent_insights(session: Session) -> Non
             alignment_summary="Working hard",
             context_summary="Day 3 context",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("Question 5"),
                 generated("Question 6"),
@@ -790,7 +777,6 @@ def test_life_insight_8_day_boundary_simulation(session: Session) -> None:
                 alignment_summary="Working hard",
                 context_summary=f"Day {day_num} context",
                 completed_goal_ids=[],
-                new_goals=[],
                 follow_up_questions=[
                     generated(f"Question A for day {day_num}"),
                     generated(f"Question B for day {day_num}"),
@@ -834,7 +820,6 @@ def test_percy_scheduled_reminder_creates_task_with_remind_at(session: Session) 
             alignment_summary="What I'm Working On",
             context_summary="A steady day.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("What made today feel steady?"),
                 generated("What do you want tomorrow to hold?"),
@@ -889,7 +874,6 @@ def test_percy_goal_request_creates_weekly_goal(session: Session) -> None:
             alignment_summary="What I'm Working On",
             context_summary="A steady day.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("What made today feel steady?"),
                 generated("What do you want tomorrow to hold?"),
@@ -924,7 +908,6 @@ def test_import_mode_preserves_raw_text_as_narrative(session: Session) -> None:
             alignment_summary="What I'm Working On",
             context_summary="Went to the store and saw Bob.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("How did seeing Bob feel?", QuestionDimension.SOCIAL),
                 generated("What made the day feel good?", QuestionDimension.SPIRITUAL),
@@ -957,7 +940,6 @@ def test_verbatim_mode_preserves_raw_text_and_skips_alignment_summary(session: S
             alignment_summary="What I'm Working On",
             context_summary="A long day.",
             completed_goal_ids=[],
-            new_goals=[],
             follow_up_questions=[
                 generated("What drained you most?", QuestionDimension.MENTAL),
                 generated("Who did you lean on?", QuestionDimension.SOCIAL),
@@ -1015,7 +997,6 @@ def test_includes_todays_plan_tasks_in_system_prompt(session: Session) -> None:
             alignment_summary="What I'm Working On",
             context_summary="Worked on chapter 3.",
             completed_goal_ids=[planned.id],
-            new_goals=[],
             follow_up_questions=[
                 generated("What blocked chapter 3?", QuestionDimension.MENTAL),
                 generated("Who helped you focus?", QuestionDimension.SOCIAL),

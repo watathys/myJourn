@@ -70,9 +70,6 @@ class DailyAIResult(BaseModel):
     completed_goal_ids: list[str] = Field(
         description="IDs of supplied pending goals clearly completed in this transcript."
     )
-    new_goals: list[str] = Field(
-        description="Distinct new open loops or goals explicitly present in the transcript."
-    )
     follow_up_questions: list[GeneratedFollowUpQuestion] = Field(
         min_length=2,
         max_length=3,

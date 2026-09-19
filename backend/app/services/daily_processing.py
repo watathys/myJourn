@@ -285,29 +285,12 @@ class DailyProcessingService:
             goal.status = GoalStatus.COMPLETED
             goal.completed_by_entry_id = entry.id
 
+        # Journaling never creates tasks on its own. The only tasks that may be born from an
+        # entry are the ones the user explicitly asked Percy for (rule 11b); passing mentions
+        # like "tomorrow I need to brush my teeth" are left in the narrative only.
         next_sort_order = self._next_task_sort_order(user_id)
         existing_texts = {goal.goal_text.strip().casefold() for goal in pending_goals}
         new_tasks: list[OpenLoopAndGoal] = []
-
-        for goal_text in ai_result.new_goals:
-            clean_text = goal_text.strip()
-            normalized = clean_text.casefold()
-            if not clean_text or normalized in existing_texts:
-                continue
-            task = OpenLoopAndGoal(
-                user_id=user_id,
-                journal_entry_id=entry.id,
-                goal_text=clean_text,
-                status=GoalStatus.PENDING,
-                kind=GoalKind.TASK,
-                sort_order=next_sort_order,
-                target_count=parse_target_count_from_text(clean_text),
-                current_count=0,
-            )
-            next_sort_order += 1
-            self._session.add(task)
-            new_tasks.append(task)
-            existing_texts.add(normalized)
 
         for scheduled in ai_result.percy_scheduled_reminders:
             clean_text = scheduled.reminder_text.strip()

@@ -32,7 +32,6 @@ class ScenarioAI:
                 alignment_summary="What I'm Working On\n\nRun three miles tomorrow.",
                 context_summary="Plans to run three miles Tuesday morning.",
                 completed_goal_ids=[],
-                new_goals=["Run 3 miles"],
                 follow_up_questions=[
                     GeneratedFollowUpQuestion(
                         question_text="How did the run feel?",
@@ -54,7 +53,6 @@ class ScenarioAI:
             alignment_summary="What I'm Working On\n\nI followed through on my run.",
             context_summary="Completed the planned three-mile morning run.",
             completed_goal_ids=[goal_match.group(1)],
-            new_goals=[],
             follow_up_questions=[
                 GeneratedFollowUpQuestion(
                     question_text="What felt strongest during the run?",
@@ -105,6 +103,15 @@ def test_goal_praise_and_no_mission_flow_end_to_end(
     client, ai = scenario_client
     user_id = client.post("/api/users").json()["id"]
 
+    # Tasks are created deliberately (here through the task list), never extracted from a
+    # journal entry. The journal only detects completion of a task that already exists.
+    created_task = client.post(
+        f"/api/users/{user_id}/tasks",
+        json={"goal_text": "Run 3 miles"},
+    )
+    assert created_task.status_code == 201
+    task_id = created_task.json()["id"]
+
     monday = client.post(
         "/api/journal-entries/process",
         json={
@@ -117,8 +124,9 @@ def test_goal_praise_and_no_mission_flow_end_to_end(
 
     assert monday.status_code == 201
     monday_body = monday.json()
-    assert monday_body["new_goals"][0]["goal_text"] == "Run 3 miles"
-    assert monday_body["new_goals"][0]["status"] == "pending"
+    # Mentioning the run in the journal did not spawn a second task.
+    assert monday_body["new_goals"] == []
+    assert [task["id"] for task in client.get(f"/api/users/{user_id}/tasks").json()] == [task_id]
     assert monday_body["formatted_narrative"]
     assert monday_body["alignment_summary"].startswith("What I'm Working On")
     assert monday_body["praise_message"] is None
@@ -140,6 +148,7 @@ def test_goal_praise_and_no_mission_flow_end_to_end(
 
     assert tuesday.status_code == 201
     tuesday_body = tuesday.json()
+    assert tuesday_body["completed_goals"][0]["id"] == task_id
     assert tuesday_body["completed_goals"][0]["status"] == "completed"
     assert "three miles this morning" in tuesday_body["praise_message"]
     assert tuesday_body["display_text"].startswith(tuesday_body["praise_message"])
@@ -158,8 +167,11 @@ def test_goal_praise_and_no_mission_flow_end_to_end(
 
     history = client.get(f"/api/users/{user_id}/journal-entries").json()
     monday_history = next(entry for entry in history if entry["date"] == "2026-07-20")
-    assert monday_history["goals"][0]["status"] == "completed"
+    # The pending mention stayed in the narrative and never became an entry-linked task.
+    assert monday_history["goals"] == []
     assert monday_history["follow_up_questions"] == [
         "How did the run feel?",
         "What will help you get started?",
     ]
+    tuesday_history = next(entry for entry in history if entry["date"] == "2026-07-21")
+    assert tuesday_history["completed_goals"][0]["id"] == task_id

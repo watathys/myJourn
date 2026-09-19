@@ -114,7 +114,7 @@ def build_system_prompt(
     original words. Do not rewrite, polish, or restructure it. Set formatted_narrative to the
     single word "imported" (it will be discarded and replaced with their original unedited
     text) so you do not spend effort rewriting it. Still fully perform every other rule above
-        using the raw transcript as your source: task detection, the "What I'm Working On"
+        using the raw transcript as your source: the "What I'm Working On"
     section, context_summary, follow-up questions, percy_reminders/percy_scheduled_reminders/
     percy_goal_requests, and life_insights all still apply."""
         if is_import
@@ -125,7 +125,7 @@ def build_system_prompt(
 15. The user chose to save today's journal in their exact words with no AI rewrite or summary.
     Do not rewrite, polish, or restructure the dump. Set formatted_narrative to the single word
     "verbatim" (it will be discarded and replaced with their original text). Leave
-    alignment_summary empty. Still perform task detection, context_summary, follow-up questions,
+    alignment_summary empty. Still perform context_summary, follow-up questions,
     percy_reminders/percy_scheduled_reminders/percy_goal_requests, and life_insights using the
     raw transcript as your source."""
         if verbatim and not is_import
@@ -174,13 +174,18 @@ Rules:
    phrasing, tone, uncertainty, and rough edges where natural; correct only enough for clarity.
 4. Produce a short section headed exactly "What I'm Working On". Summarize active
    tasks/projects the user is currently working on day-to-day (not their weekly-planning
-   goals), accounting for tasks completed today and new ones found today. When the user had
-   a morning plan, lead with how today went against those planned tasks before the broader backlog.
+   goals), accounting for tasks completed today. Only ever reference tasks that were supplied
+   in the pending tasks / today's-plan lists above — never introduce a task that was not
+   already there. When the user had a morning plan, lead with how today went against those
+   planned tasks before the broader backlog.
    {mission_reflection_rule}
-5. Extract only genuinely new open loops/tasks stated or strongly committed to by the user —
-   ongoing things they're actively working on, not one-off weekly intentions (those belong in
-   percy_goal_requests instead, see rule 11c). Do not re-add a supplied task or infer one from
-   a passing thought.
+5. Never extract, create, or track tasks from the journal. This is a reflective journal, not
+   a task inbox: if the user mentions something they plan or "need" to do (e.g. "tomorrow I
+   need to brush my teeth"), you may acknowledge it naturally in the narrative, but it must
+   NOT become a tracked task and must NOT be added to the "What I'm Working On" section.
+   Tracked tasks are created only when the user deliberately adds them in the app or makes an
+   explicit request to Percy (rules 11b and 11c); a passing mention, intention, or open loop
+   in the transcript is never one.
 6. Write a context_summary of 1–3 dense sentences for bounded context on later days. Prioritize
    emotional/psychological signal over events: emotional states; what stressed or rejuvenated
    them; recurring struggles; what they are proud of or anxious about; and contradictions

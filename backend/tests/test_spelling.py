@@ -45,7 +45,6 @@ class FakeJournalAI:
             context_summary="Did some work.",
             completed_goal_ids=[],
             praise_message=None,
-            new_goals=[],
             follow_up_questions=[
                 GeneratedFollowUpQuestion(
                     question_text=f"How was your walk today on run {self.call_count}?",
