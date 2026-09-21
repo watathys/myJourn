@@ -44,7 +44,9 @@ export function TaskForm({ placeholder = 'Add a task', onAdded }: { placeholder?
         <label>
           <span>Due date (optional)</span>
           <input
-            type="date"
+            type="text"
+            inputMode="numeric"
+            placeholder="mm/dd/yy"
             value={newTaskDueDate}
             onChange={(event) => setNewTaskDueDate(event.target.value)}
             aria-label="Task due date"

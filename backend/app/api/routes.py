@@ -76,13 +76,10 @@ from app.schemas import (
 )
 from app.services import google_calendar
 from app.services.daily_processing import DailyProcessingService
-from app.services.goal_helpers import cleanup_archived_tasks
+from app.services.goal_helpers import cleanup_archived_tasks, parse_target_count_from_text
 from app.services.percy_chat import chat_with_percy
 from app.services.percy_goal import create_goal_with_percy
-from app.services.schedule_parsing import (
-    parse_natural_language_calendar_batch,
-    parse_natural_language_item,
-)
+from app.services.schedule_parsing import parse_natural_language_calendar_batch
 from app.services.spelling import (
     delete_spelling_correction,
     get_user_spelling_corrections,
@@ -811,26 +808,24 @@ def create_goal(
     payload: CreateGoalRequest,
     current_user_id: CurrentUserId,
     session: DbSession,
-    ai: AIClient,
-    settings: AppSettings,
 ) -> OpenLoopAndGoal:
+    """Add a weekly goal verbatim.
+
+    Goals typed into weekly planning are stored exactly as written and are
+    never passed through AI natural-language parsing. No calendar event is
+    created here: scheduling happens explicitly later through the reminder
+    picker, or through Percy's separate plain-English goal flow.
+    """
     clean_text = payload.goal_text.strip()
     if not clean_text:
         raise HTTPException(status_code=422, detail="goal_text must not be empty")
 
-    parsed_title, remind_at, parsed_target_cnt, is_daily, duration = parse_natural_language_item(
-        clean_text,
-        base_date=payload.week_start_date,
-        ai=ai,
-        settings=settings,
-        item_type="goal",
-    )
-
-    clean_text = parsed_title
+    # Keep the deterministic "10x" / "N times" convenience when the caller
+    # hasn't chosen a non-default target count, but never infer a reminder.
     target_count = (
         payload.target_count
         if payload.target_count is not None and payload.target_count > 1
-        else parsed_target_cnt
+        else parse_target_count_from_text(clean_text)
     )
     current_count = payload.current_count if payload.current_count is not None else 0
 
@@ -854,23 +849,11 @@ def create_goal(
         target_count=target_count,
         current_count=current_count,
         week_start_date=payload.week_start_date,
-        remind_at=remind_at,
+        remind_at=None,
     )
     session.add(goal)
     session.commit()
     session.refresh(goal)
-
-    if remind_at is not None:
-        user = session.get(User, current_user_id)
-        if user and user.google_connected:
-            try:
-                google_calendar.sync_task_event(
-                    settings, user, goal, duration_minutes=duration, is_daily_recurring=is_daily
-                )
-                session.commit()
-                session.refresh(goal)
-            except Exception:
-                logger.warning("Could not sync calendar event for goal %s", goal.id, exc_info=True)
 
     return goal
 

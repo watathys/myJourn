@@ -143,8 +143,10 @@ export function TaskSection({ section, tasks }: { section: Section | null; tasks
                   autoFocus
                 />
                 <input
-                  type="date"
+                  type="text"
+                  inputMode="numeric"
                   className="quick-add-due"
+                  placeholder="mm/dd/yy"
                   value={addDueDate}
                   onChange={(event) => setAddDueDate(event.target.value)}
                   aria-label={`Due date for new task in ${name}`}

@@ -15,7 +15,7 @@ import {
 import { supabase } from '../supabase'
 import {
   addDaysToIsoDate, combineToRemindAt, currentTime, dayPhase, durationMinutesFromTimes,
-  isAutoDarkModeTime, journalDay, weekAgo, weekStartOf, type DayPhase,
+  isAutoDarkModeTime, journalDay, parseDueDateInput, weekAgo, weekStartOf, type DayPhase,
 } from '../lib/day'
 import { compareEntries, isMobileViewport, sortWorkingTasks } from '../lib/entries'
 import { makeRowId, parseBulkEntries, type ImportRow } from '../lib/import'
@@ -954,7 +954,7 @@ export function useJournalState() {
       const options: { section_id?: string; due_date?: string } = {}
       const sectionId = newTaskSectionId.trim()
       if (sectionId) options.section_id = sectionId
-      const dueDate = newTaskDueDate.trim()
+      const dueDate = parseDueDateInput(newTaskDueDate)
       if (dueDate) options.due_date = dueDate
       const task = await createTask(userId, clean, options)
       setTasks((current) => sortWorkingTasks([...current, task]))
@@ -980,7 +980,8 @@ export function useJournalState() {
     setAddingTask(true)
     setError('')
     try {
-      const task = await createTask(userId, clean, { section_id: sectionId, due_date: dueDate || undefined })
+      const parsedDue = parseDueDateInput(dueDate ?? '')
+      const task = await createTask(userId, clean, { section_id: sectionId, due_date: parsedDue ?? undefined })
       setTasks((current) => sortWorkingTasks([...current, task]))
       if (planEditing) {
         setMorningSelectedIds((current) => (current.includes(task.id) ? current : [...current, task.id]))

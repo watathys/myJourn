@@ -92,6 +92,36 @@ export function formatShortDate(date: string) {
     .format(new Date(`${date}T12:00:00Z`))
 }
 
+/** Parse a user-typed due date ("mm/dd", "mm/dd/yy", or "mm/dd/yyyy") into an
+ * ISO "yyyy-mm-dd" string. A missing year defaults to the current year, and a
+ * two-digit year is treated as 20xx. Returns null when the input is empty or
+ * not a real calendar date (e.g. "2/30"). */
+export function parseDueDateInput(value: string): string | null {
+  const parts = value.trim().split(/[/.\- ]+/).filter(Boolean)
+  if (parts.length < 2 || parts.length > 3) return null
+
+  const month = Number(parts[0])
+  const day = Number(parts[1])
+  if (!Number.isInteger(month) || !Number.isInteger(day)) return null
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+
+  let year: number
+  if (parts.length === 3) {
+    year = Number(parts[2])
+    if (!Number.isInteger(year)) return null
+    if (year < 100) year += 2000
+  } else {
+    year = new Date().getFullYear()
+  }
+
+  const date = new Date(year, month - 1, day)
+  // Guard against rollovers like 2/30 -> March 2.
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null
+  }
+  return toIsoDate(date)
+}
+
 export function formatWeekRange(weekStartIso: string) {
   const end = addDaysToIsoDate(weekStartIso, 6)
   return `${formatShortDate(weekStartIso)} \u2013 ${formatShortDate(end)}`
