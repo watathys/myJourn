@@ -1,6 +1,6 @@
-import { AlarmClock, Archive, Bell, Check, GripVertical, Pencil, Plus, X } from 'lucide-react'
+import { AlarmClock, Archive, Bell, CalendarDays, Check, GripVertical, Pencil, Plus, X } from 'lucide-react'
 import type { Task } from '../api'
-import { formatRemindAt } from '../lib/day'
+import { addDaysToIsoDate, formatRemindAt, formatShortDate, journalDay } from '../lib/day'
 import { taskProgress } from '../lib/entries'
 import { useJournal } from '../state/journalContext'
 import { GoalCheckboxes } from './ui/GoalCheckboxes'
@@ -17,22 +17,33 @@ type TaskRowProps = {
   showSectionTag?: boolean
 }
 
+/** A compact "Due …" label for a task's due date, or null when there is none. */
+function dueDateLabel(dueDate: string | null | undefined): string | null {
+  if (!dueDate) return null
+  const today = journalDay()
+  if (dueDate === today) return 'Due today'
+  if (dueDate === addDaysToIsoDate(today, 1)) return 'Due tomorrow'
+  return `Due ${formatShortDate(dueDate)}`
+}
+
 export function TaskRow({
   task, draggable = false, selectMode = false, selected = false, showSectionTag = false,
 }: TaskRowProps) {
   const {
     sections, patchTask, updatingTaskId, acknowledgeHighlight, openScheduleModal, openSnoozeModal, toggleMorningTask,
     draggedTaskId, taskDropTarget, handleTaskDragStart, handleTaskDragOver, handleTaskDrop, clearTaskDrag,
-    editingTaskId, setEditingTaskId, editTaskText, setEditTaskText, startEditingTask, saveTaskEdit,
+    editingTaskId, setEditingTaskId, editTaskText, setEditTaskText, startEditingTask, saveTaskEdit, todayIso,
   } = useJournal()
   const { isCompleted, targetCount, currentCount } = taskProgress(task)
   const section = task.section_id ? sections.find((item) => item.id === task.section_id) : undefined
-  const hasMeta = Boolean(showSectionTag && section) || Boolean(task.remind_at) || Boolean(task.just_resurfaced)
+  const isDueToday = Boolean(task.due_date && task.due_date === todayIso)
+  const hasMeta = Boolean(showSectionTag && section) || Boolean(task.remind_at) || Boolean(task.just_resurfaced) || Boolean(task.due_date)
 
   const classNames = ['row']
   if (isCompleted) classNames.push('row-done')
   if (task.just_resurfaced) classNames.push('row-highlight')
   if (selectMode && selected) classNames.push('row-picked')
+  if (isDueToday) classNames.push('row-due-today')
   if (draggable && draggedTaskId === task.id) classNames.push('is-dragging')
   if (draggable && taskDropTarget?.id === task.id) classNames.push(`drop-${taskDropTarget.position}`)
 
@@ -119,6 +130,11 @@ export function TaskRow({
               <span className="tag tag-section" data-color={section.color}>
                 <span className="section-dot" aria-hidden="true" />
                 {section.name}
+              </span>
+            )}
+            {task.due_date && (
+              <span className={`tag tag-due${isDueToday ? ' tag-due-today' : ''}`}>
+                <CalendarDays /> {dueDateLabel(task.due_date)}
               </span>
             )}
             {task.remind_at && (

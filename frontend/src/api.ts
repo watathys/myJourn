@@ -14,6 +14,7 @@ export type Task = {
   has_calendar_reminder: boolean
   section_id?: string | null
   archived_at?: string | null
+  due_date?: string | null
 }
 
 export type TaskSection = {
@@ -299,7 +300,12 @@ export function getTasks(userId: string): Promise<Task[]> {
 export function createTask(
   userId: string,
   goalText: string,
-  options?: { remind_at?: string | null; duration_minutes?: number | null; section_id?: string | null },
+  options?: {
+    remind_at?: string | null
+    duration_minutes?: number | null
+    section_id?: string | null
+    due_date?: string | null
+  },
 ): Promise<Task> {
   return request(`/users/${userId}/tasks`, {
     method: 'POST',
@@ -308,6 +314,7 @@ export function createTask(
       ...(options?.remind_at != null ? { remind_at: options.remind_at } : {}),
       ...(options?.duration_minutes != null ? { duration_minutes: options.duration_minutes } : {}),
       ...(options?.section_id != null ? { section_id: options.section_id } : {}),
+      ...(options?.due_date != null ? { due_date: options.due_date } : {}),
     }),
   })
 }
@@ -321,6 +328,7 @@ export type TaskUpdate = {
   snoozed_until?: string | null
   duration_minutes?: number | null
   section_id?: string | null
+  due_date?: string | null
 }
 
 export function updateTask(userId: string, taskId: string, updates: TaskUpdate): Promise<Task> {

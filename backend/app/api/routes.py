@@ -441,6 +441,7 @@ def create_task(
         current_count=0,
         remind_at=payload.remind_at,
         snoozed_until=payload.snoozed_until,
+        due_date=payload.due_date,
         section_id=section_id,
     )
     session.add(task)
@@ -518,6 +519,9 @@ def update_task(
 
     if "section_id" in fields_set:
         task.section_id = _resolve_section_id(session, current_user_id, payload.section_id)
+
+    if "due_date" in fields_set:
+        task.due_date = payload.due_date
 
     if schedule_changed and task.status == GoalStatus.PENDING:
         _sync_or_clear_calendar(

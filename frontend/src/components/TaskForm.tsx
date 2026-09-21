@@ -5,7 +5,7 @@ import { useJournal } from '../state/journalContext'
 export function TaskForm({ placeholder = 'Add a task', onAdded }: { placeholder?: string; onAdded?: (id: string) => void }) {
   const {
     newTaskDraft, setNewTaskDraft, addingTask, addManualTask, sections, newTaskSectionId,
-    setNewTaskSectionId,
+    setNewTaskSectionId, newTaskDueDate, setNewTaskDueDate,
   } = useJournal()
 
   async function submit() {
@@ -40,6 +40,15 @@ export function TaskForm({ placeholder = 'Add a task', onAdded }: { placeholder?
               <option key={section.id} value={section.id}>{section.name}</option>
             ))}
           </select>
+        </label>
+        <label>
+          <span>Due date (optional)</span>
+          <input
+            type="date"
+            value={newTaskDueDate}
+            onChange={(event) => setNewTaskDueDate(event.target.value)}
+            aria-label="Task due date"
+          />
         </label>
       </div>
     </div>

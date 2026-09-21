@@ -85,6 +85,7 @@ class TaskResponse(BaseModel):
     has_calendar_reminder: bool
     section_id: Optional[str] = None
     archived_at: Optional[datetime] = None
+    due_date: Optional[date] = None
 
 
 class SectionResponse(BaseModel):
@@ -121,6 +122,7 @@ class CreateTaskRequest(BaseModel):
     snoozed_until: Optional[date] = None
     duration_minutes: Optional[int] = Field(default=None, ge=1, le=24 * 60)
     section_id: Optional[str] = None
+    due_date: Optional[date] = None
 
 
 class UpdateTaskRequest(BaseModel):
@@ -133,6 +135,7 @@ class UpdateTaskRequest(BaseModel):
     snoozed_until: Optional[date] = None
     duration_minutes: Optional[int] = Field(default=None, ge=1, le=24 * 60)
     section_id: Optional[str] = None
+    due_date: Optional[date] = None
 
 
 class ReorderTasksRequest(BaseModel):

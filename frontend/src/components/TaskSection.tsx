@@ -15,6 +15,7 @@ export function TaskSection({ section, tasks }: { section: Section | null; tasks
 
   const [addOpen, setAddOpen] = useState(false)
   const [addDraft, setAddDraft] = useState('')
+  const [addDueDate, setAddDueDate] = useState('')
 
   const selecting = dayState === 'plan'
   const isUnsectioned = section === null
@@ -40,6 +41,7 @@ export function TaskSection({ section, tasks }: { section: Section | null; tasks
   function closeQuickAdd() {
     setAddOpen(false)
     setAddDraft('')
+    setAddDueDate('')
   }
 
   function toggleQuickAdd() {
@@ -55,8 +57,11 @@ export function TaskSection({ section, tasks }: { section: Section | null; tasks
     if (!section || addingTask) return
     const clean = addDraft.trim()
     if (!clean) return
-    const created = await addTaskToSection(section.id, clean)
-    if (created) setAddDraft('')
+    const created = await addTaskToSection(section.id, clean, addDueDate.trim() || undefined)
+    if (created) {
+      setAddDraft('')
+      setAddDueDate('')
+    }
   }
 
   return (
@@ -136,6 +141,14 @@ export function TaskSection({ section, tasks }: { section: Section | null; tasks
                   placeholder={`Add to ${name}`}
                   aria-label={`New task in ${name}`}
                   autoFocus
+                />
+                <input
+                  type="date"
+                  className="quick-add-due"
+                  value={addDueDate}
+                  onChange={(event) => setAddDueDate(event.target.value)}
+                  aria-label={`Due date for new task in ${name}`}
+                  title="Due date (optional)"
                 />
                 <button
                   className="primary-button"

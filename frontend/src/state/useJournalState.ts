@@ -167,6 +167,7 @@ export function useJournalState() {
   // Tasks
   const [newTaskDraft, setNewTaskDraft] = useState('')
   const [newTaskSectionId, setNewTaskSectionId] = useState('')
+  const [newTaskDueDate, setNewTaskDueDate] = useState('')
   const [addingTask, setAddingTask] = useState(false)
   const [taskFormOpen, setTaskFormOpen] = useState(false)
   const [snoozedOpen, setSnoozedOpen] = useState(false)
@@ -387,7 +388,10 @@ export function useJournalState() {
     if (tasks.length === 0 && cachedTasks.length > 0) setTasks(cachedTasks)
     if (entries.length === 0 && cachedEntries.length > 0) setEntries(cachedEntries)
     if (sections.length === 0 && cachedSections.length > 0) setSections(cachedSections)
-    if (!dailyPlan && cachedPlan) {
+    // Only hydrate a cached plan if it belongs to the current journal day.
+    // Otherwise yesterday's picks would linger as "picked for today" and get
+    // sent back to the server when the user saves today's plan.
+    if (!dailyPlan && cachedPlan && cachedPlan.date === journalDay()) {
       setDailyPlan(cachedPlan)
       setMorningSelectedIds(cachedPlan.selected_task_ids ?? [])
     }
@@ -584,13 +588,17 @@ export function useJournalState() {
   useEffect(() => {
     if (!userId) return
     if (dailyPlan && dailyPlan.date === todayIso) return
+    // The journal day changed (or we have no plan for today yet). Clear any
+    // stale selections synchronously so yesterday's picks can never be shown
+    // or saved for today, even if the fetch below is slow or fails.
+    setMorningSelectedIds([])
+    setPlanEditing(false)
     let mounted = true
     getDailyPlan(userId, todayIso)
       .then((plan) => {
         if (!mounted) return
         setDailyPlan(plan)
         setMorningSelectedIds(plan?.selected_task_ids ?? [])
-        setPlanEditing(false)
       })
       .catch(() => {})
     return () => { mounted = false }
@@ -943,9 +951,11 @@ export function useJournalState() {
     setAddingTask(true)
     setError('')
     try {
-      const options: { section_id?: string } = {}
+      const options: { section_id?: string; due_date?: string } = {}
       const sectionId = newTaskSectionId.trim()
       if (sectionId) options.section_id = sectionId
+      const dueDate = newTaskDueDate.trim()
+      if (dueDate) options.due_date = dueDate
       const task = await createTask(userId, clean, options)
       setTasks((current) => sortWorkingTasks([...current, task]))
       if (planEditing) {
@@ -953,6 +963,7 @@ export function useJournalState() {
       }
       setNewTaskDraft('')
       setNewTaskSectionId('')
+      setNewTaskDueDate('')
       refreshBackgroundState()
       return task
     } catch (reason) {
@@ -963,13 +974,13 @@ export function useJournalState() {
   }
 
   /** Quick-add a task straight into a specific section (category). */
-  async function addTaskToSection(sectionId: string, text: string): Promise<Task | undefined> {
+  async function addTaskToSection(sectionId: string, text: string, dueDate?: string): Promise<Task | undefined> {
     const clean = text.trim()
     if (!userId || !clean || addingTask) return undefined
     setAddingTask(true)
     setError('')
     try {
-      const task = await createTask(userId, clean, { section_id: sectionId })
+      const task = await createTask(userId, clean, { section_id: sectionId, due_date: dueDate || undefined })
       setTasks((current) => sortWorkingTasks([...current, task]))
       if (planEditing) {
         setMorningSelectedIds((current) => (current.includes(task.id) ? current : [...current, task.id]))
@@ -2025,8 +2036,8 @@ export function useJournalState() {
     setDateDraft, savingDate, saveDateEdit, deletingEntry, removeActiveEntry, entryListRef,
 
     // tasks
-    newTaskDraft, setNewTaskDraft, newTaskSectionId, setNewTaskSectionId, addingTask, addManualTask,
-    addTaskToSection,
+    newTaskDraft, setNewTaskDraft, newTaskSectionId, setNewTaskSectionId, newTaskDueDate,
+    setNewTaskDueDate, addingTask, addManualTask, addTaskToSection,
     taskFormOpen, setTaskFormOpen, snoozedOpen, setSnoozedOpen, updatingTaskId, patchTask,
     editingTaskId, setEditingTaskId, editTaskText, setEditTaskText, startEditingTask, saveTaskEdit,
     acknowledgeHighlight, draggedTaskId, taskDropTarget, handleTaskDragStart, handleTaskDragOver,

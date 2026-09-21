@@ -265,6 +265,7 @@ class OpenLoopAndGoal(Base):
         DateTime(timezone=True), nullable=True
     )
     snoozed_until: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     snooze_seen: Mapped[bool] = mapped_column(
         Boolean, server_default="1", default=True, nullable=False
     )
