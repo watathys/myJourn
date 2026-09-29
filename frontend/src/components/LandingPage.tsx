@@ -31,8 +31,8 @@ const STEPS = [
   },
   {
     num: '03',
-    title: 'You get one change to make',
-    body: 'When the same thread shows up across three separate days, Percy names it out loud and suggests one practical thing to do differently.',
+    title: 'You get changes, not just insights',
+    body: 'When the same thread keep surfacing, our AI finds it and suggests one practical thing to do differently.',
   },
   {
     num: '04',
@@ -151,11 +151,11 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
           <div className="landing-container landing-hero-grid">
             <div className="landing-hero-copy">
               <p className="landing-eyebrow"><ScanSearch /> Journaling that talks back</p>
-              <h1 className="landing-h1">Turn Journaling to life auditing</h1>
+              <h1 className="landing-h1">Turn Journaling into life auditing</h1>
               <p className="landing-hero-sub">
                 Bookends is a journal that does something with what you write. Our AI reads your
                 entries, connects them across weeks, names the pattern quietly running your
-                life — then tells you the one thing to do differently. 
+                life — then tells you what to do differently. 
               </p>
               <div className="landing-hero-ctas">
                 <button type="button" className="landing-primary landing-primary-lg" onClick={onGetStarted}>
