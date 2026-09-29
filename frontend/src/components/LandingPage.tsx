@@ -151,12 +151,11 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
           <div className="landing-container landing-hero-grid">
             <div className="landing-hero-copy">
               <p className="landing-eyebrow"><ScanSearch /> Journaling that talks back</p>
-              <h1 className="landing-h1">Write your day. Find out what to change.</h1>
+              <h1 className="landing-h1">Turn Journaling to life auditing</h1>
               <p className="landing-hero-sub">
-                Bookends is a journal that does something with what you write. Percy reads your
-                entries, connects them across weeks, and names the pattern quietly running your
-                life — then tells you the one thing to do differently. Weekly planning turns it
-                into a plan you actually finish.
+                Bookends is a journal that does something with what you write. Our AI reads your
+                entries, connects them across weeks, names the pattern quietly running your
+                life — then tells you the one thing to do differently. 
               </p>
               <div className="landing-hero-ctas">
                 <button type="button" className="landing-primary landing-primary-lg" onClick={onGetStarted}>
@@ -169,7 +168,7 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
             </div>
 
             <div className="landing-hero-preview" aria-hidden="true">
-              <span className="landing-preview-label">Three ordinary entries</span>
+              <span className="landing-preview-label">Journal entries</span>
               <div className="landing-preview-days">
                 <p className="landing-preview-day"><span>Mon</span> Work ran long, skipped the gym again.</p>
                 <p className="landing-preview-day"><span>Wed</span> Too fried to cook, ordered in.</p>
@@ -201,8 +200,8 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
               <p className="landing-eyebrow">How it works</p>
               <h2 className="landing-h2">Two minutes in. A specific change out.</h2>
               <p className="landing-lead">
-                You do the easy part. Percy does the part no one can do for themselves — reading
-                weeks of their own life at once and seeing the shape of it.
+                You write about your day. Our AI reads through
+                weeks of your life at once and finds the patterns.
               </p>
             </div>
             <ol className="landing-steps landing-steps-4">
@@ -244,10 +243,8 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
             <p className="landing-note">
               <ScanSearch />
               <span>
-                Percy holds a high bar. The same thread has to show up across at least three
-                separate days, and it has to tell you something you haven't already told yourself.
-                Most days there is nothing worth saying — so Percy says nothing. This is an audit,
-                not a daily horoscope.
+                Percy holds a high bar. It makes sure you hit your goals, and 
+                helps you understand who you really are.
               </span>
             </p>
           </div>
@@ -259,10 +256,9 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
               <p className="landing-eyebrow"><CalendarRange /> Weekly planning</p>
               <h2 className="landing-h2">The half hour that makes the week work</h2>
               <p className="landing-lead">
-                Insight is cheap until it hits a calendar. Once a week you sit down with your own
-                week written up in front of you, decide what the next one is for, and walk out with
-                a short list you can actually finish. Anything you asked Percy to bring up during
-                the week is waiting here too.
+                Once a week you sit down with your 
+                week written up in front of you, plan the next one, and walk out with
+                a short list you can actually finish. 
               </p>
               <div className="landing-hero-ctas landing-weekly-cta">
                 <button type="button" className="landing-primary" onClick={onGetStarted}>
