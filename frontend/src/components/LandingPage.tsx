@@ -151,7 +151,7 @@ export function LandingPage({ onSignIn, onGetStarted }: LandingPageProps) {
           <div className="landing-container landing-hero-grid">
             <div className="landing-hero-copy">
               <p className="landing-eyebrow"><ScanSearch /> Journaling that talks back</p>
-              <h1 className="landing-h1">Turn Journaling into life auditing</h1>
+              <h1 className="landing-h1">Turn Journaling into auditing</h1>
               <p className="landing-hero-sub">
                 Bookends is a journal that does something with what you write. Our AI reads your
                 entries, connects them across weeks, names the pattern quietly running your
