@@ -205,6 +205,7 @@ def process_journal_entry(
             is_import=payload.is_import,
             verbatim=payload.verbatim,
             append_to_entry_id=payload.append_to_entry_id,
+            pending_tasks_override=payload.pending_tasks,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -732,24 +733,22 @@ def upsert_daily_plan(
     current_user_id: CurrentUserId,
     session: DbSession,
 ) -> DailyPlan:
-    if session.get(User, current_user_id) is None:
-        raise HTTPException(status_code=404, detail="User not found")
+    if user_id != current_user_id or session.get(User, current_user_id) is None:
+        raise HTTPException(status_code=403, detail="User not found")
 
     selected_ids = list(dict.fromkeys(payload.selected_task_ids))
     if selected_ids:
-        owned = session.scalars(
+        owned_by_other = session.scalars(
             select(OpenLoopAndGoal.id).where(
-                OpenLoopAndGoal.user_id == current_user_id,
-                OpenLoopAndGoal.status != GoalStatus.ABANDONED,
                 OpenLoopAndGoal.id.in_(selected_ids),
+                OpenLoopAndGoal.user_id != current_user_id,
             )
         )
-        owned_ids = set(owned)
-        invalid = [task_id for task_id in selected_ids if task_id not in owned_ids]
+        invalid = set(owned_by_other)
         if invalid:
             raise HTTPException(
                 status_code=422,
-                detail=f"Invalid or archived task IDs: {', '.join(invalid)}",
+                detail=f"Invalid task IDs: {', '.join(invalid)}",
             )
 
     plan = _get_daily_plan(session, current_user_id, plan_date)

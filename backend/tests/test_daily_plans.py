@@ -101,7 +101,7 @@ def test_upsert_daily_plan_allows_completed_tasks_and_goals(
     assert response.json()["selected_task_ids"] == [task_a.id, goal_b.id]
 
 
-def test_upsert_daily_plan_rejects_invalid_task_ids(
+def test_upsert_daily_plan_accepts_client_task_ids(
     client: TestClient, session: Session
 ) -> None:
     user = User()
@@ -112,12 +112,13 @@ def test_upsert_daily_plan_rejects_invalid_task_ids(
         f"/api/users/{user.id}/daily-plans/2026-08-17",
         json={
             "user_id": user.id,
-            "selected_task_ids": ["not-a-real-task"],
+            "selected_task_ids": ["client-task-123"],
             "complete_morning": True,
         },
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 200
+    assert response.json()["selected_task_ids"] == ["client-task-123"]
 
 
 def test_daily_plan_is_isolated_by_user(client: TestClient, session: Session) -> None:

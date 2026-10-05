@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import {
   acknowledgeTaskSnooze, addToCalendarNaturalLanguage, chatWithPercy, createGoalWithPercy, createPercyReminder, createSavedPercyAdvice,
-  createSection, createSpellingCorrection, createTask, createWeeklyGoal, deleteJournalEntry,
+  createSection, createSpellingCorrection, deleteJournalEntry,
   deletePercyReminder, deleteSavedPercyAdvice, deleteSection, deleteSpellingCorrection, disconnectGoogle, dismissLifeInsight,
   dismissPercyReminder, finishWeeklyPlanning, generateWeeklyReflection, getDailyPlan,
   getEntries, getGoogleAuthorizeUrl, getGoogleStatus, getLifeInsights, getNorthStar, getPercyReminders,
-  getSavedPercyAdvice, getSections, getSpellingCorrections, getTasks, getWeeklyGoals, getWeeklyPlanningSession,
-  markLifeInsightRead, processEntry, reorderGoals, reorderSections, reorderTasks, saveDailyPlan, saveNorthStar,
-  startWeeklyPlanning, updateGoal, updateJournalEntry, updateTask,
+  getSavedPercyAdvice, getSections, getSpellingCorrections, getWeeklyPlanningSession,
+  markLifeInsightRead, processEntry, reorderSections, saveDailyPlan, saveNorthStar,
+  startWeeklyPlanning, updateJournalEntry,
   type DailyPlan, type Goal, type GoalUpdate, type GoogleStatus, type JournalEntry, type LifeInsight,
   type PercyChatMessage, type PercyReminder, type SavedPercyAdvice, type SpellingCorrection, type Task,
   type TaskSection, type TaskUpdate, type WeeklyPlanningSession,
@@ -418,8 +418,6 @@ export function useJournalState() {
         getEntries(id),
         getNorthStar(id),
         getLifeInsights(id),
-        getTasks(id),
-        getWeeklyGoals(id, weekStartOf(day)),
         getSpellingCorrections(id),
         getPercyReminders(id),
         getDailyPlan(id, day),
@@ -431,8 +429,6 @@ export function useJournalState() {
         historyRes,
         missionRes,
         insightsRes,
-        taskListRes,
-        goalsRes,
         correctionsRes,
         remindersRes,
         planRes,
@@ -454,20 +450,12 @@ export function useJournalState() {
       }
 
       if (insightsRes.status === 'fulfilled') setLifeInsights(insightsRes.value)
-
-      if (taskListRes.status === 'fulfilled') {
-        setTasks(taskListRes.value)
-      } else {
-        errors.push(`Tasks: ${getErrorMessage(taskListRes.reason)}`)
-      }
-
-      if (goalsRes.status === 'fulfilled') setWeeklyGoals(goalsRes.value)
       if (correctionsRes.status === 'fulfilled') setSpellingCorrections(correctionsRes.value)
       if (remindersRes.status === 'fulfilled') setPercyReminders(remindersRes.value)
 
-      if (planRes.status === 'fulfilled') {
+      if (planRes.status === 'fulfilled' && planRes.value) {
         setDailyPlan(planRes.value)
-        setMorningSelectedIds(planRes.value?.selected_task_ids ?? [])
+        setMorningSelectedIds(planRes.value.selected_task_ids ?? [])
       }
 
       if (adviceRes.status === 'fulfilled') setSavedPercyAdvice(adviceRes.value)
@@ -495,17 +483,13 @@ export function useJournalState() {
       const results = await Promise.allSettled([
         getPercyReminders(userId),
         getLifeInsights(userId),
-        getWeeklyGoals(userId, weekStartOf(journalDay())),
-        getTasks(userId),
         getDailyPlan(userId, journalDay()),
         getSections(userId),
       ])
       if (results[0].status === 'fulfilled') setPercyReminders(results[0].value)
       if (results[1].status === 'fulfilled') setLifeInsights(results[1].value)
-      if (results[2].status === 'fulfilled') setWeeklyGoals(results[2].value)
-      if (results[3].status === 'fulfilled') setTasks(results[3].value)
-      if (results[4].status === 'fulfilled') setDailyPlan(results[4].value)
-      if (results[5].status === 'fulfilled') setSections(results[5].value)
+      if (results[2].status === 'fulfilled' && results[2].value) setDailyPlan(results[2].value)
+      if (results[3].status === 'fulfilled') setSections(results[3].value)
     } catch {
       // Best-effort background refresh; everything reappears on the next visit.
     }
@@ -623,25 +607,19 @@ export function useJournalState() {
         if (!mounted) return
         setWeeklySession(existingSession)
         setWeeklySessionChecked(true)
+        const lastWeekDate = addDaysToIsoDate(weekStart, -7)
+        setLastWeekGoals(weeklyGoals.filter((goal) => goal.week_start_date === lastWeekDate))
         if (!existingSession) return
-        return Promise.all([
-          getPercyReminders(userId),
-          getTasks(userId),
-          getWeeklyGoals(userId, weekStart),
-          getWeeklyGoals(userId, addDaysToIsoDate(weekStart, -7)),
-        ]).then(([reminders, taskList, goals, lastWeek]) => {
+        getPercyReminders(userId).then((reminders) => {
           if (!mounted) return
           setPercyReminders(reminders)
-          setTasks(taskList)
-          setWeeklyGoals(goals)
-          setLastWeekGoals(lastWeek)
-        })
+        }).catch(() => {})
       })
       .catch((reason: Error) => mounted && setError(reason.message))
       .finally(() => mounted && setWeeklyLoading(false))
     return () => { mounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [panel, userId, weekStart])
+  }, [panel, userId, weekStart, weeklyGoals])
 
   useEffect(() => {
     if (draft) {
@@ -774,13 +752,21 @@ export function useJournalState() {
     if (!userId || savingMorningPlan) return
     setSavingMorningPlan(true)
     setError('')
+    const localPlan: DailyPlan = {
+      id: dailyPlan?.id || `plan-${todayIso}`,
+      date: todayIso,
+      selected_task_ids: selectedIds,
+      morning_completed_at: dailyPlan?.morning_completed_at || new Date().toISOString(),
+      created_at: dailyPlan?.created_at || new Date().toISOString(),
+    }
+    setDailyPlan(localPlan)
+    setCached(cacheKey(userId, 'daily_plan'), localPlan)
+    setMorningSelectedIds(selectedIds)
+    setPlanEditing(false)
     try {
-      const plan = await saveDailyPlan(userId, todayIso, selectedIds, true)
-      setDailyPlan(plan)
-      setMorningSelectedIds(plan.selected_task_ids)
-      setPlanEditing(false)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to save your plan for today.')
+      await saveDailyPlan(userId, todayIso, selectedIds, true)
+    } catch {
+      // Best-effort background save; local state is maintained
     } finally {
       setSavingMorningPlan(false)
     }
@@ -798,13 +784,57 @@ export function useJournalState() {
     setGenerating(true)
     setError('')
     try {
+      const pendingTasksForAi = visibleTasks.map((t) => ({ id: t.id, goal_text: t.goal_text }))
       const created = await processEntry(
-        userId, entryDate, draft.trim(), false, appendTarget?.id, saveVerbatim,
+        userId, entryDate, draft.trim(), false, appendTarget?.id, saveVerbatim, pendingTasksForAi,
       )
-      const [refreshedEntries, refreshedTasks] = await Promise.all([getEntries(userId), getTasks(userId)])
+      const refreshedEntries = await getEntries(userId)
       const savedEntry = refreshedEntries.find((entry) => entry.id === created.id) ?? created
+
+      // Handle completed goals matched by AI
+      if (created.completed_goals && created.completed_goals.length > 0) {
+        const completedIds = new Set(created.completed_goals.map((g) => g.id))
+        setTasks((current) => {
+          const next = current.map((t) => (completedIds.has(t.id) ? { ...t, status: 'completed' as const } : t))
+          setCached(cacheKey(userId, 'tasks'), next)
+          return next
+        })
+      }
+
+      // Handle new tasks extracted/requested
+      if (created.goals && created.goals.length > 0) {
+        const newTasksWithIds: Task[] = created.goals.map((g) => ({
+          ...g,
+          id: g.id || crypto.randomUUID(),
+          status: g.status || 'pending',
+          target_count: g.target_count || 1,
+          current_count: g.current_count || 0,
+        }))
+        setTasks((current) => {
+          const next = [...current, ...newTasksWithIds]
+          setCached(cacheKey(userId, 'tasks'), next)
+          return next
+        })
+      }
+
+      // Handle new weekly goals extracted/requested
+      if (created.new_weekly_goals && created.new_weekly_goals.length > 0) {
+        const newWeeklyGoalsWithIds: Goal[] = created.new_weekly_goals.map((g) => ({
+          ...g,
+          id: g.id || crypto.randomUUID(),
+          status: g.status || 'pending',
+          target_count: g.target_count || 1,
+          current_count: g.current_count || 0,
+          week_start_date: g.week_start_date || weekStart,
+        }))
+        setWeeklyGoals((current) => {
+          const next = [...current, ...newWeeklyGoalsWithIds]
+          setCached(cacheKey(userId, 'weekly_goals'), next)
+          return next
+        })
+      }
+
       setEntries(refreshedEntries)
-      setTasks(refreshedTasks)
       setDraft('')
       setAppendTarget(null)
       setComposerOpen(false)
@@ -931,9 +961,8 @@ export function useJournalState() {
     setError('')
     try {
       await deleteJournalEntry(userId, activeEntry.id)
-      const [refreshedEntries, refreshedTasks] = await Promise.all([getEntries(userId), getTasks(userId)])
+      const refreshedEntries = await getEntries(userId)
       setEntries(refreshedEntries)
-      setTasks(refreshedTasks)
       setActiveEntry(null)
       setNarrativeDraft('')
     } catch (reason) {
@@ -945,29 +974,39 @@ export function useJournalState() {
 
   /* ------------------------------------------------------------------- tasks */
 
-  async function addManualTask() {
+  async function addManualTask(): Promise<Task | undefined> {
     const clean = newTaskDraft.trim()
-    if (!userId || !clean || addingTask) return
+    if (!userId || !clean) return undefined
     setAddingTask(true)
     setError('')
     try {
-      const options: { section_id?: string; due_date?: string } = {}
-      const sectionId = newTaskSectionId.trim()
-      if (sectionId) options.section_id = sectionId
-      const dueDate = parseDueDateInput(newTaskDueDate)
-      if (dueDate) options.due_date = dueDate
-      const task = await createTask(userId, clean, options)
-      setTasks((current) => sortWorkingTasks([...current, task]))
+      const sectionId = newTaskSectionId.trim() || null
+      const dueDate = parseDueDateInput(newTaskDueDate) || null
+      const task: Task = {
+        id: crypto.randomUUID(),
+        goal_text: clean,
+        status: 'pending',
+        sort_order: tasks.length + 1,
+        target_count: 1,
+        current_count: 0,
+        remind_at: null,
+        snoozed_until: null,
+        is_snoozed: false,
+        just_resurfaced: false,
+        has_calendar_reminder: false,
+        section_id: sectionId,
+        due_date: dueDate,
+      }
+      const updated = sortWorkingTasks([...tasks, task])
+      setTasks(updated)
+      setCached(cacheKey(userId, 'tasks'), updated)
       if (planEditing) {
         setMorningSelectedIds((current) => (current.includes(task.id) ? current : [...current, task.id]))
       }
       setNewTaskDraft('')
       setNewTaskSectionId('')
       setNewTaskDueDate('')
-      refreshBackgroundState()
       return task
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to add that task.')
     } finally {
       setAddingTask(false)
     }
@@ -976,21 +1015,33 @@ export function useJournalState() {
   /** Quick-add a task straight into a specific section (category). */
   async function addTaskToSection(sectionId: string, text: string, dueDate?: string): Promise<Task | undefined> {
     const clean = text.trim()
-    if (!userId || !clean || addingTask) return undefined
+    if (!userId || !clean) return undefined
     setAddingTask(true)
     setError('')
     try {
-      const parsedDue = parseDueDateInput(dueDate ?? '')
-      const task = await createTask(userId, clean, { section_id: sectionId, due_date: parsedDue ?? undefined })
-      setTasks((current) => sortWorkingTasks([...current, task]))
+      const parsedDue = parseDueDateInput(dueDate ?? '') || null
+      const task: Task = {
+        id: crypto.randomUUID(),
+        goal_text: clean,
+        status: 'pending',
+        sort_order: tasks.length + 1,
+        target_count: 1,
+        current_count: 0,
+        remind_at: null,
+        snoozed_until: null,
+        is_snoozed: false,
+        just_resurfaced: false,
+        has_calendar_reminder: false,
+        section_id: sectionId,
+        due_date: parsedDue,
+      }
+      const updated = sortWorkingTasks([...tasks, task])
+      setTasks(updated)
+      setCached(cacheKey(userId, 'tasks'), updated)
       if (planEditing) {
         setMorningSelectedIds((current) => (current.includes(task.id) ? current : [...current, task.id]))
       }
-      refreshBackgroundState()
       return task
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to add that task.')
-      return undefined
     } finally {
       setAddingTask(false)
     }
@@ -998,41 +1049,50 @@ export function useJournalState() {
 
   async function patchTask(task: Task, updates: TaskUpdate): Promise<Task | undefined> {
     if (!userId) return undefined
-
-    const updateKeys = Object.keys(updates)
-    const isCountOnly = updateKeys.length === 1 && updateKeys[0] === 'current_count'
-      && updates.current_count !== undefined
-
-    if (isCountOnly) {
-      const target = task.target_count ?? 1
-      const current_count = Math.max(0, Math.min(target, updates.current_count!))
-      const optimistic: Task = {
-        ...task,
-        current_count,
-        status: current_count >= target ? 'completed' : 'pending',
-      }
-      setTasks((current) => sortWorkingTasks(current.map((item) => (item.id === task.id ? optimistic : item))))
-      setError('')
-      try {
-        const updated = await updateTask(userId, task.id, { current_count })
-        setTasks((current) => sortWorkingTasks(current.map((item) => (item.id === task.id ? updated : item))))
-        return updated
-      } catch (reason) {
-        setTasks((current) => sortWorkingTasks(current.map((item) => (item.id === task.id ? task : item))))
-        setError(reason instanceof Error ? reason.message : 'Unable to update that task.')
-        return undefined
-      }
-    }
-
     setUpdatingTaskId(task.id)
     setError('')
     try {
-      const updated = await updateTask(userId, task.id, updates)
-      const archived = updated.status === 'abandoned'
+      let updatedStatus = updates.status ?? task.status
+      let updatedTarget = updates.target_count ?? task.target_count ?? 1
+      if (updates.target_count !== undefined) updatedTarget = Math.max(1, updates.target_count)
+
+      let updatedCurrent = updates.current_count ?? task.current_count ?? 0
+      if (updates.current_count !== undefined) {
+        updatedCurrent = Math.max(0, Math.min(updatedTarget, updates.current_count))
+        if (updatedCurrent >= updatedTarget) {
+          updatedStatus = 'completed'
+        } else if (!updates.status) {
+          updatedStatus = 'pending'
+        }
+      }
+
+      if (updates.status === 'completed') {
+        updatedCurrent = updatedTarget
+      } else if (updates.status === 'pending' && updatedCurrent >= updatedTarget) {
+        updatedCurrent = Math.max(0, updatedTarget - 1)
+      }
+
+      const archived = updatedStatus === 'abandoned'
+
+      const updated: Task = {
+        ...task,
+        goal_text: updates.goal_text?.trim() || task.goal_text,
+        status: updatedStatus,
+        target_count: updatedTarget,
+        current_count: updatedCurrent,
+        remind_at: 'remind_at' in updates ? (updates.remind_at ?? null) : task.remind_at,
+        snoozed_until: 'snoozed_until' in updates ? (updates.snoozed_until ?? null) : task.snoozed_until,
+        section_id: 'section_id' in updates ? (updates.section_id ?? null) : task.section_id,
+        due_date: 'due_date' in updates ? (updates.due_date ?? null) : task.due_date,
+        archived_at: archived ? new Date().toISOString() : task.archived_at,
+      }
+
       setTasks((current) => {
-        if (archived) return current.filter((item) => item.id !== task.id)
-        return sortWorkingTasks(current.map((item) => (item.id === task.id ? updated : item)))
+        const next = archived ? current.filter((item) => item.id !== task.id) : current.map((item) => (item.id === task.id ? updated : item))
+        setCached(cacheKey(userId, 'tasks'), next)
+        return sortWorkingTasks(next)
       })
+
       const touchesJournalFields = 'status' in updates || 'remind_at' in updates || 'snoozed_until' in updates
       if (touchesJournalFields || archived) {
         setEntries((current) => current.map((entry) => ({
@@ -1044,20 +1104,19 @@ export function useJournalState() {
             ? (entry.completed_goals ?? []).filter((item) => item.id !== task.id)
             : (entry.completed_goals ?? []).map((item) => (item.id === task.id ? updated : item)),
         })))
-        setActiveEntry((current) => current ? {
-          ...current,
-          goals: archived
-            ? current.goals.filter((item) => item.id !== task.id)
-            : current.goals.map((item) => (item.id === task.id ? updated : item)),
-          completed_goals: archived
-            ? (current.completed_goals ?? []).filter((item) => item.id !== task.id)
-            : (current.completed_goals ?? []).map((item) => (item.id === task.id ? updated : item)),
-        } : current)
+        if (activeEntry) {
+          setActiveEntry((current) => current ? {
+            ...current,
+            goals: archived
+              ? current.goals.filter((item) => item.id !== task.id)
+              : current.goals.map((item) => (item.id === task.id ? updated : item)),
+            completed_goals: archived
+              ? (current.completed_goals ?? []).filter((item) => item.id !== task.id)
+              : (current.completed_goals ?? []).map((item) => (item.id === task.id ? updated : item)),
+          } : current)
+        }
       }
       return updated
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update that task.')
-      return undefined
     } finally {
       setUpdatingTaskId(null)
     }
@@ -1142,7 +1201,6 @@ export function useJournalState() {
       return
     }
     const sectionKey = target.section_id ?? null
-    // Tasks currently in the target's section (in display order), minus the dragged one.
     const order = visibleTasks
       .filter((task) => (task.section_id ?? null) === sectionKey && task.id !== draggedTaskId)
       .map((task) => task.id)
@@ -1152,27 +1210,18 @@ export function useJournalState() {
       return
     }
     order.splice(targetIndex + (position === 'after' ? 1 : 0), 0, draggedTaskId)
-    const movingSections = (dragged.section_id ?? null) !== sectionKey
     clearTaskDrag()
 
-    const byId = new Map(tasks.map((task) => [task.id, task]))
     setTasks((current) => {
+      const byId = new Map(current.map((task) => [task.id, task]))
+      const moved = byId.get(draggedTaskId)
+      if (moved) moved.section_id = sectionKey
       const reordered = order.map((id) => byId.get(id)).filter((task): task is Task => Boolean(task))
       const rest = current.filter((task) => !order.includes(task.id))
-      return [...reordered, ...rest]
+      const next = [...reordered, ...rest]
+      setCached(cacheKey(userId, 'tasks'), next)
+      return next
     })
-    try {
-      if (movingSections) {
-        await updateTask(userId, draggedTaskId, { section_id: sectionKey })
-      }
-      const updated = await reorderTasks(userId, order)
-      setTasks((current) => {
-        const byUpdatedId = new Map(updated.map((task) => [task.id, task]))
-        return current.map((task) => byUpdatedId.get(task.id) ?? task)
-      })
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to reorder your tasks.')
-    }
   }
 
   /* ---------------------------------------------------------- task sections */
@@ -1336,39 +1385,36 @@ export function useJournalState() {
     if (!userId) return
     const task = tasks.find((item) => item.id === taskId)
     if (!task || (task.section_id ?? null) === sectionId) return
-    try {
-      const updated = await patchTask(task, { section_id: sectionId })
-      if (!updated) return
-      // Keep the moved task at the end of its new section.
-      const sectionOrder = visibleTasks
-        .filter((item) => (item.section_id ?? null) === sectionId && item.id !== taskId)
-        .map((item) => item.id)
-      sectionOrder.push(taskId)
-      const reordered = await reorderTasks(userId, sectionOrder)
-      setTasks((current) => {
-        const byId = new Map(reordered.map((item) => [item.id, item]))
-        return current.map((item) => byId.get(item.id) ?? item)
-      })
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to move that task.')
-    }
+    void patchTask(task, { section_id: sectionId })
   }
 
   /* ------------------------------------------------------------------- goals */
 
   async function addWeeklyGoal() {
     const clean = newGoalDraft.trim()
-    if (!userId || !clean || addingGoal) return
+    if (!userId || !clean) return
     setAddingGoal(true)
     setError('')
     try {
-      const goal = await createWeeklyGoal(userId, clean, weekStart, newGoalTargetCount)
-      setWeeklyGoals((current) => [...current, goal])
+      const goal: Goal = {
+        id: crypto.randomUUID(),
+        goal_text: clean,
+        status: 'pending',
+        sort_order: weeklyGoals.length + 1,
+        target_count: newGoalTargetCount || 1,
+        current_count: 0,
+        week_start_date: weekStart,
+        remind_at: null,
+        snoozed_until: null,
+        is_snoozed: false,
+        just_resurfaced: false,
+        has_calendar_reminder: false,
+      }
+      const updated = [...weeklyGoals, goal]
+      setWeeklyGoals(updated)
+      setCached(cacheKey(userId, 'weekly_goals'), updated)
       setNewGoalDraft('')
       setNewGoalTargetCount(1)
-      refreshBackgroundState()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to add that goal.')
     } finally {
       setAddingGoal(false)
     }
@@ -1379,13 +1425,49 @@ export function useJournalState() {
     setUpdatingGoalId(goal.id)
     setError('')
     try {
-      const updated = await updateGoal(userId, goal.id, updates)
-      setWeeklyGoals((current) => current.map((item) => (item.id === goal.id ? updated : item)))
-      setLastWeekGoals((current) => current.map((item) => (item.id === goal.id ? updated : item)))
+      let updatedStatus = updates.status ?? goal.status
+      let updatedTarget = updates.target_count ?? goal.target_count ?? 1
+      if (updates.target_count !== undefined) updatedTarget = Math.max(1, updates.target_count)
+
+      let updatedCurrent = updates.current_count ?? goal.current_count ?? 0
+      if (updates.current_count !== undefined) {
+        updatedCurrent = Math.max(0, Math.min(updatedTarget, updates.current_count))
+        if (updatedCurrent >= updatedTarget) {
+          updatedStatus = 'completed'
+        } else if (!updates.status) {
+          updatedStatus = 'pending'
+        }
+      }
+
+      if (updates.status === 'completed') {
+        updatedCurrent = updatedTarget
+      } else if (updates.status === 'pending' && updatedCurrent >= updatedTarget) {
+        updatedCurrent = Math.max(0, updatedTarget - 1)
+      }
+
+      const archived = updatedStatus === 'abandoned'
+
+      const updated: Goal = {
+        ...goal,
+        goal_text: updates.goal_text?.trim() || goal.goal_text,
+        status: updatedStatus,
+        target_count: updatedTarget,
+        current_count: updatedCurrent,
+        remind_at: 'remind_at' in updates ? (updates.remind_at ?? null) : (goal.remind_at ?? null),
+        snoozed_until: 'snoozed_until' in updates ? (updates.snoozed_until ?? null) : (goal.snoozed_until ?? null),
+        archived_at: archived ? new Date().toISOString() : goal.archived_at,
+      }
+
+      const apply = (goalsList: Goal[]) => {
+        const next = archived
+          ? goalsList.filter((item) => item.id !== goal.id)
+          : goalsList.map((item) => (item.id === goal.id ? updated : item))
+        setCached(cacheKey(userId, 'weekly_goals'), next)
+        return next
+      }
+      setWeeklyGoals(apply)
+      setLastWeekGoals(apply)
       return updated
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update goal.')
-      return undefined
     } finally {
       setUpdatingGoalId(null)
     }
@@ -1395,45 +1477,12 @@ export function useJournalState() {
     if (!userId) return
     const target = goal.target_count ?? 1
     const current_count = Math.max(0, Math.min(target, newCount))
-    const optimistic: Goal = {
-      ...goal,
-      current_count,
-      status: current_count >= target ? 'completed' : 'pending',
-    }
-    const applyLocal = (next: Goal) => {
-      const apply = (goals: Goal[]) => goals.map((item) => (item.id === goal.id ? next : item))
-      setWeeklyGoals(apply)
-      setLastWeekGoals(apply)
-    }
-    applyLocal(optimistic)
-    setError('')
-    try {
-      const updated = await updateGoal(userId, goal.id, { current_count })
-      applyLocal(updated)
-    } catch (reason) {
-      applyLocal(goal)
-      setError(reason instanceof Error ? reason.message : 'Unable to update that goal.')
-    }
+    void patchGoal(goal, { current_count, status: current_count >= target ? 'completed' : 'pending' })
   }
 
   async function changeGoalStatus(goal: Goal, status: Goal['status']) {
-    if (!userId || updatingGoalId) return
-    setUpdatingGoalId(goal.id)
-    setError('')
-    try {
-      const updated = await updateGoal(userId, goal.id, status)
-      const apply = (goals: Goal[]) => (
-        status === 'abandoned'
-          ? goals.filter((item) => item.id !== goal.id)
-          : goals.map((item) => (item.id === goal.id ? updated : item))
-      )
-      setWeeklyGoals(apply)
-      setLastWeekGoals(apply)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update that goal.')
-    } finally {
-      setUpdatingGoalId(null)
-    }
+    if (!userId) return
+    void patchGoal(goal, { status })
   }
 
   function startEditingGoal(goal: Goal) {
@@ -1446,19 +1495,8 @@ export function useJournalState() {
     const cleanText = editGoalText.trim()
     if (!userId || !cleanText) return
     const target = Math.min(1000, Math.max(1, Math.floor(editGoalTarget) || 1))
-    setUpdatingGoalId(goal.id)
-    setError('')
-    try {
-      const updated = await updateGoal(userId, goal.id, { goal_text: cleanText, target_count: target })
-      const apply = (goals: Goal[]) => goals.map((item) => (item.id === goal.id ? updated : item))
-      setWeeklyGoals(apply)
-      setLastWeekGoals(apply)
-      setEditingGoalId(null)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update that goal.')
-    } finally {
-      setUpdatingGoalId(null)
-    }
+    void patchGoal(goal, { goal_text: cleanText, target_count: target })
+    setEditingGoalId(null)
   }
 
   function clearGoalDrag() {
@@ -1504,20 +1542,11 @@ export function useJournalState() {
     order.splice(insertIndex, 0, draggedGoalId)
     clearGoalDrag()
     const byId = new Map(weeklyGoals.map((goal) => [goal.id, goal]))
-    setWeeklyGoals((current) => {
-      const reordered = order.map((id) => byId.get(id)).filter((goal): goal is Goal => Boolean(goal))
-      const rest = current.filter((goal) => !order.includes(goal.id))
-      return [...reordered, ...rest]
-    })
-    try {
-      const updated = await reorderGoals(userId, weekStart, order)
-      setWeeklyGoals((current) => {
-        const byUpdatedId = new Map(updated.map((goal) => [goal.id, goal]))
-        return current.map((goal) => byUpdatedId.get(goal.id) ?? goal)
-      })
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to reorder your goals.')
-    }
+    const reordered = order.map((id) => byId.get(id)).filter((goal): goal is Goal => Boolean(goal))
+    const rest = weeklyGoals.filter((goal) => !order.includes(goal.id))
+    const next = [...reordered, ...rest]
+    setWeeklyGoals(next)
+    setCached(cacheKey(userId, 'weekly_goals'), next)
   }
 
   /* --------------------------------------------------------------- reminders */
@@ -1690,16 +1719,10 @@ export function useJournalState() {
     setError('')
     try {
       setWeeklySession(await startWeeklyPlanning(userId, weekStart))
-      const [reminders, taskList, goals, lastWeek] = await Promise.all([
-        getPercyReminders(userId),
-        getTasks(userId),
-        getWeeklyGoals(userId, weekStart),
-        getWeeklyGoals(userId, addDaysToIsoDate(weekStart, -7)),
-      ])
+      const reminders = await getPercyReminders(userId)
       setPercyReminders(reminders)
-      setTasks(taskList)
-      setWeeklyGoals(goals)
-      setLastWeekGoals(lastWeek)
+      const lastWeekDate = addDaysToIsoDate(weekStart, -7)
+      setLastWeekGoals(weeklyGoals.filter((goal) => goal.week_start_date === lastWeekDate))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to start weekly planning.')
     } finally {

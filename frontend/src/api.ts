@@ -226,7 +226,8 @@ export async function processEntry(
   isImport = false,
   appendToEntryId?: string,
   verbatim = true,
-): Promise<JournalEntry> {
+  pendingTasks?: Array<{ id: string; goal_text: string }>,
+): Promise<JournalEntry & { new_weekly_goals?: Goal[] }> {
   const result = await request<
     Omit<JournalEntry, 'id' | 'goals'> & {
       journal_entry_id: string
@@ -244,6 +245,7 @@ export async function processEntry(
       is_import: isImport,
       verbatim,
       append_to_entry_id: appendToEntryId,
+      ...(pendingTasks ? { pending_tasks: pendingTasks } : {}),
     }),
   })
 
@@ -251,6 +253,7 @@ export async function processEntry(
     ...result,
     id: result.journal_entry_id,
     goals: result.new_goals,
+    new_weekly_goals: result.new_weekly_goals,
   }
 }
 

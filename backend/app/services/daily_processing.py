@@ -98,6 +98,7 @@ class DailyProcessingService:
         is_import: bool = False,
         verbatim: bool = True,
         append_to_entry_id: Optional[str] = None,
+        pending_tasks_override: Optional[list[object]] = None,
     ) -> DailyProcessingResult:
         """Process and atomically save a dump without altering its raw text."""
 
@@ -128,7 +129,19 @@ class DailyProcessingService:
         mission = self._session.scalar(
             select(MissionStatement.statement_text).where(MissionStatement.user_id == user_id)
         )
-        pending_goals = self._recent_pending_goals(user_id, entry_date)
+        if pending_tasks_override:
+            pending_goals = [
+                OpenLoopAndGoal(
+                    id=getattr(task, "id", task.get("id") if isinstance(task, dict) else str(task)),
+                    user_id=user_id,
+                    goal_text=getattr(task, "goal_text", task.get("goal_text") if isinstance(task, dict) else str(task)),
+                    status=GoalStatus.PENDING,
+                    kind=GoalKind.TASK,
+                )
+                for task in pending_tasks_override
+            ]
+        else:
+            pending_goals = self._recent_pending_goals(user_id, entry_date)
         prompt_goals = [PromptGoal(id=goal.id, text=goal.goal_text) for goal in pending_goals]
         todays_plan_goals = self._todays_plan_goals(user_id, entry_date, pending_goals)
         prompt_todays_plan = [

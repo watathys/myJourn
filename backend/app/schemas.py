@@ -46,6 +46,11 @@ class CreateSpellingCorrectionRequest(BaseModel):
     correct_word: str = Field(min_length=1)
 
 
+class PendingTaskInput(BaseModel):
+    id: str
+    goal_text: str
+
+
 class ProcessJournalRequest(BaseModel):
     user_id: str
     date: date
@@ -53,6 +58,7 @@ class ProcessJournalRequest(BaseModel):
     is_import: bool = False
     verbatim: bool = True
     append_to_entry_id: Optional[str] = None
+    pending_tasks: Optional[list[PendingTaskInput]] = None
 
 
 class UpdateJournalEntryRequest(BaseModel):
