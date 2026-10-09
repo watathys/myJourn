@@ -15,7 +15,7 @@ import {
 import { supabase } from '../supabase'
 import {
   addDaysToIsoDate, combineToRemindAt, currentTime, dayPhase, durationMinutesFromTimes,
-  isAutoDarkModeTime, journalDay, parseDueDateInput, weekAgo, weekStartOf, type DayPhase,
+  extractInlineDueDate, formatShortDate, isAutoDarkModeTime, journalDay, parseDueDateInput, weekAgo, weekStartOf, type DayPhase,
 } from '../lib/day'
 import { compareEntries, isMobileViewport, sortWorkingTasks } from '../lib/entries'
 import { makeRowId, parseBulkEntries, type ImportRow } from '../lib/import'
@@ -174,6 +174,7 @@ export function useJournalState() {
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [editTaskText, setEditTaskText] = useState('')
+  const [editTaskDueDate, setEditTaskDueDate] = useState('')
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [taskDropTarget, setTaskDropTarget] = useState<{ id: string; position: 'before' | 'after' } | null>(null)
 
@@ -981,10 +982,18 @@ export function useJournalState() {
     setError('')
     try {
       const sectionId = newTaskSectionId.trim() || null
-      const dueDate = parseDueDateInput(newTaskDueDate) || null
+      let dueDate = parseDueDateInput(newTaskDueDate) || null
+      let taskText = clean
+      if (!dueDate && !newTaskDueDate.trim()) {
+        const inline = extractInlineDueDate(clean)
+        if (inline) {
+          taskText = inline.text
+          dueDate = inline.dueDate
+        }
+      }
       const task: Task = {
         id: crypto.randomUUID(),
-        goal_text: clean,
+        goal_text: taskText,
         status: 'pending',
         sort_order: tasks.length + 1,
         target_count: 1,
@@ -1019,10 +1028,18 @@ export function useJournalState() {
     setAddingTask(true)
     setError('')
     try {
-      const parsedDue = parseDueDateInput(dueDate ?? '') || null
+      let parsedDue = parseDueDateInput(dueDate ?? '') || null
+      let taskText = clean
+      if (!parsedDue && !(dueDate ?? '').trim()) {
+        const inline = extractInlineDueDate(clean)
+        if (inline) {
+          taskText = inline.text
+          parsedDue = inline.dueDate
+        }
+      }
       const task: Task = {
         id: crypto.randomUUID(),
-        goal_text: clean,
+        goal_text: taskText,
         status: 'pending',
         sort_order: tasks.length + 1,
         target_count: 1,
@@ -1125,16 +1142,23 @@ export function useJournalState() {
   function startEditingTask(task: Task) {
     setEditingTaskId(task.id)
     setEditTaskText(task.goal_text)
+    setEditTaskDueDate(task.due_date ? formatShortDate(task.due_date) : '')
   }
 
   async function saveTaskEdit(task: Task) {
     const cleanText = editTaskText.trim()
     if (!cleanText) return
-    if (cleanText === task.goal_text) {
+    const parsedDue = editTaskDueDate.trim() ? parseDueDateInput(editTaskDueDate) : null
+    const textChanged = cleanText !== task.goal_text
+    const dueChanged = (parsedDue ?? null) !== (task.due_date ?? null)
+    if (!textChanged && !dueChanged) {
       setEditingTaskId(null)
       return
     }
-    const updated = await patchTask(task, { goal_text: cleanText })
+    const updates: TaskUpdate = {}
+    if (textChanged) updates.goal_text = cleanText
+    if (dueChanged) updates.due_date = parsedDue
+    const updated = await patchTask(task, updates)
     if (updated) setEditingTaskId(null)
   }
 
@@ -2063,7 +2087,7 @@ export function useJournalState() {
     newTaskDraft, setNewTaskDraft, newTaskSectionId, setNewTaskSectionId, newTaskDueDate,
     setNewTaskDueDate, addingTask, addManualTask, addTaskToSection,
     taskFormOpen, setTaskFormOpen, snoozedOpen, setSnoozedOpen, updatingTaskId, patchTask,
-    editingTaskId, setEditingTaskId, editTaskText, setEditTaskText, startEditingTask, saveTaskEdit,
+    editingTaskId, setEditingTaskId, editTaskText, setEditTaskText, editTaskDueDate, setEditTaskDueDate, startEditingTask, saveTaskEdit,
     acknowledgeHighlight, draggedTaskId, taskDropTarget, handleTaskDragStart, handleTaskDragOver,
     handleTaskDrop, clearTaskDrag,
 

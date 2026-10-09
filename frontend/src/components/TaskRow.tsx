@@ -1,6 +1,6 @@
 import { AlarmClock, Archive, Bell, CalendarDays, Check, GripVertical, Pencil, Plus, X } from 'lucide-react'
 import type { Task } from '../api'
-import { addDaysToIsoDate, formatRemindAt, formatShortDate, journalDay } from '../lib/day'
+import { addDaysToIsoDate, formatRemindAt, formatShortDate, journalDay, parseDueDateInput } from '../lib/day'
 import { taskProgress } from '../lib/entries'
 import { useJournal } from '../state/journalContext'
 import { GoalCheckboxes } from './ui/GoalCheckboxes'
@@ -32,7 +32,7 @@ export function TaskRow({
   const {
     sections, patchTask, updatingTaskId, acknowledgeHighlight, openScheduleModal, openSnoozeModal, toggleMorningTask,
     draggedTaskId, taskDropTarget, handleTaskDragStart, handleTaskDragOver, handleTaskDrop, clearTaskDrag,
-    editingTaskId, setEditingTaskId, editTaskText, setEditTaskText, startEditingTask, saveTaskEdit, todayIso,
+    editingTaskId, setEditingTaskId, editTaskText, setEditTaskText, editTaskDueDate, setEditTaskDueDate, startEditingTask, saveTaskEdit, todayIso,
   } = useJournal()
   const { isCompleted, targetCount, currentCount } = taskProgress(task)
   const section = task.section_id ? sections.find((item) => item.id === task.section_id) : undefined
@@ -48,6 +48,7 @@ export function TaskRow({
   if (draggable && taskDropTarget?.id === task.id) classNames.push(`drop-${taskDropTarget.position}`)
 
   if (editingTaskId === task.id) {
+    const editParsedDue = editTaskDueDate.trim() ? parseDueDateInput(editTaskDueDate) : null
     return (
       <li className="row row-editing">
         <div className="task-edit">
@@ -61,6 +62,20 @@ export function TaskRow({
             placeholder="Task"
             aria-label="Task text"
             autoFocus
+          />
+          <input
+            type="text"
+            inputMode="numeric"
+            className="task-edit-due"
+            placeholder="Due (e.g. 1004)"
+            value={editTaskDueDate}
+            onChange={(event) => setEditTaskDueDate(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void saveTaskEdit(task)
+              if (event.key === 'Escape') setEditingTaskId(null)
+            }}
+            aria-label="Task due date"
+            title={editParsedDue ? `Due ${formatShortDate(editParsedDue)}` : 'Due date (e.g. 1004 or 10/4)'}
           />
           <button
             className="icon-button"
@@ -133,9 +148,17 @@ export function TaskRow({
               </span>
             )}
             {task.due_date && (
-              <span className={`tag tag-due${isDueToday ? ' tag-due-today' : ''}`}>
+              <button
+                type="button"
+                className={`tag tag-due${isDueToday ? ' tag-due-today' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  startEditingTask(task)
+                }}
+                title="Click to edit due date"
+              >
                 <CalendarDays /> {dueDateLabel(task.due_date)}
-              </span>
+              </button>
             )}
             {task.remind_at && (
               <span className="tag">

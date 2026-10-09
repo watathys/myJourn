@@ -188,7 +188,15 @@ code {
 
 /* Task due date bubble. "Due today" gets the danger tint to match the border. */
 .tag-due { font-weight: 600; }
+button.tag-due { cursor: pointer; transition: filter 120ms ease; }
+button.tag-due:hover { filter: brightness(0.95); }
 .tag-due-today { background: var(--danger-soft); color: var(--danger); }
+.due-parsed-tag {
+  color: var(--accent);
+  font-weight: 600;
+  margin-left: 6px;
+  font-size: var(--t-xs);
+}
 
 /* Category chip shown on task rows that appear outside their section group
  * (e.g. the "Today" list), so the task's section is still identifiable. */
@@ -915,6 +923,7 @@ textarea {
 }
 
 .task-edit > input { flex: 1; min-width: 160px; }
+.task-edit .task-edit-due { flex: 0 0 120px; min-width: 90px; }
 
 /* ------------------------------------------------------------ small lists */
 

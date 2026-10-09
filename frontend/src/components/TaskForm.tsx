@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react'
+import { formatShortDate, parseDueDateInput } from '../lib/day'
 import { useJournal } from '../state/journalContext'
 
 /** Shared "add a task" row. */
@@ -7,6 +8,8 @@ export function TaskForm({ placeholder = 'Add a task', onAdded }: { placeholder?
     newTaskDraft, setNewTaskDraft, addingTask, addManualTask, sections, newTaskSectionId,
     setNewTaskSectionId, newTaskDueDate, setNewTaskDueDate,
   } = useJournal()
+
+  const parsedPreview = newTaskDueDate.trim() ? parseDueDateInput(newTaskDueDate) : null
 
   async function submit() {
     const task = await addManualTask()
@@ -42,14 +45,21 @@ export function TaskForm({ placeholder = 'Add a task', onAdded }: { placeholder?
           </select>
         </label>
         <label>
-          <span>Due date (optional)</span>
+          <span>
+            Due date (optional)
+            {parsedPreview && (
+              <span className="due-parsed-tag" aria-live="polite"> → {formatShortDate(parsedPreview)}</span>
+            )}
+          </span>
           <input
             type="text"
             inputMode="numeric"
-            placeholder="mm/dd/yy"
+            placeholder="e.g. 1004 or 10/4"
             value={newTaskDueDate}
             onChange={(event) => setNewTaskDueDate(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') void submit() }}
             aria-label="Task due date"
+            title={parsedPreview ? `Due ${formatShortDate(parsedPreview)}` : 'Due date (e.g. 1004 or 10/4)'}
           />
         </label>
       </div>

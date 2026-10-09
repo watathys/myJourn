@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2, X } from 'lucide-react'
 import type { Task, TaskSection as Section } from '../api'
+import { formatShortDate, parseDueDateInput } from '../lib/day'
 import { useJournal } from '../state/journalContext'
 import { TaskRow } from './TaskRow'
 
@@ -128,41 +129,51 @@ export function TaskSection({ section, tasks }: { section: Section | null; tasks
 
       {!collapsed && (
         <div className="section-body">
-          {addOpen && section && (
-            <div className="task-form section-quick-add">
-              <div className="task-form-main">
-                <input
-                  value={addDraft}
-                  onChange={(event) => setAddDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') void submitQuickAdd()
-                    if (event.key === 'Escape') closeQuickAdd()
-                  }}
-                  placeholder={`Add to ${name}`}
-                  aria-label={`New task in ${name}`}
-                  autoFocus
-                />
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className="quick-add-due"
-                  placeholder="mm/dd/yy"
-                  value={addDueDate}
-                  onChange={(event) => setAddDueDate(event.target.value)}
-                  aria-label={`Due date for new task in ${name}`}
-                  title="Due date (optional)"
-                />
-                <button
-                  className="primary-button"
-                  disabled={!addDraft.trim() || addingTask}
-                  onClick={() => void submitQuickAdd()}
-                  type="button"
-                >
-                  {addingTask ? <span className="button-spinner" /> : <Plus />} Add
-                </button>
+          {addOpen && section && (() => {
+            const quickParsedDue = addDueDate.trim() ? parseDueDateInput(addDueDate) : null
+            return (
+              <div className="task-form section-quick-add">
+                <div className="task-form-main">
+                  <input
+                    value={addDraft}
+                    onChange={(event) => setAddDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') void submitQuickAdd()
+                      if (event.key === 'Escape') closeQuickAdd()
+                    }}
+                    placeholder={`Add to ${name}`}
+                    aria-label={`New task in ${name}`}
+                    autoFocus
+                  />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className="quick-add-due"
+                    placeholder="Due (e.g. 1004)"
+                    value={addDueDate}
+                    onChange={(event) => setAddDueDate(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') void submitQuickAdd()
+                      if (event.key === 'Escape') closeQuickAdd()
+                    }}
+                    aria-label={`Due date for new task in ${name}`}
+                    title={quickParsedDue ? `Due ${formatShortDate(quickParsedDue)}` : 'Due date (e.g. 1004 or 10/4)'}
+                  />
+                  {quickParsedDue && (
+                    <span className="due-parsed-tag" aria-live="polite">→ {formatShortDate(quickParsedDue)}</span>
+                  )}
+                  <button
+                    className="primary-button"
+                    disabled={!addDraft.trim() || addingTask}
+                    onClick={() => void submitQuickAdd()}
+                    type="button"
+                  >
+                    {addingTask ? <span className="button-spinner" /> : <Plus />} Add
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
           {tasks.length > 0 ? (
             <ul className="rows">
               {tasks.map((task) => (
