@@ -2062,7 +2062,8 @@ export function useJournalState() {
     setTaskSyncBusy('push')
     setError('')
     try {
-      const result = await pushTaskSnapshot(userId, tasks, weeklyGoals)
+      const todayPlan = dailyPlan && dailyPlan.date === todayIso ? dailyPlan : null
+      const result = await pushTaskSnapshot(userId, tasks, weeklyGoals, todayPlan)
       setNotice(`Pushed ${result.tasks.length} ${result.tasks.length === 1 ? 'task' : 'tasks'}. Pull them on your other device.`)
     } catch (reason: unknown) {
       setError(`Could not push tasks: ${getErrorMessage(reason)}`)
@@ -2083,14 +2084,35 @@ export function useJournalState() {
       setWeeklyGoals(snapshot.weekly_goals)
       setCached(cacheKey(userId, 'tasks'), snapshot.tasks)
       setCached(cacheKey(userId, 'weekly_goals'), snapshot.weekly_goals)
-      try {
-        const plan = await getDailyPlan(userId, journalDay())
-        if (plan) {
-          setDailyPlan(plan)
-          setMorningSelectedIds(plan.selected_task_ids ?? [])
+
+      // Today's focus is part of the snapshot: its task ids only resolve after
+      // the tasks above are in place, so it has to be applied from the push,
+      // not re-read from the server (the server copy can point at another
+      // device's stale task ids).
+      let plan = snapshot.daily_plan && snapshot.daily_plan.date === journalDay()
+        ? snapshot.daily_plan
+        : null
+      const pulledFromSnapshot = Boolean(plan)
+      if (!plan) {
+        try {
+          plan = await getDailyPlan(userId, journalDay())
+        } catch {
+          // Nothing picked for today on the server either.
         }
-      } catch {
-        // Today's focus is refreshed best-effort; tasks are already pulled.
+      }
+      if (plan) {
+        setDailyPlan(plan)
+        setMorningSelectedIds(plan.selected_task_ids ?? [])
+        setCached(cacheKey(userId, 'daily_plan'), plan)
+      }
+      if (pulledFromSnapshot && plan) {
+        try {
+          // Keep the server copy in step so the next visit to this device
+          // restores the same focus.
+          await saveDailyPlan(userId, plan.date, plan.selected_task_ids, Boolean(plan.morning_completed_at))
+        } catch {
+          // Best-effort; local state is already correct.
+        }
       }
       setNotice(`Pulled ${snapshot.tasks.length} ${snapshot.tasks.length === 1 ? 'task' : 'tasks'}.`)
     } catch (reason: unknown) {

@@ -788,7 +788,11 @@ def push_tasks(
     if user_id != current_user_id or session.get(User, current_user_id) is None:
         raise HTTPException(status_code=403, detail="User not found")
 
-    data = {"tasks": payload.tasks, "weekly_goals": payload.weekly_goals}
+    data = {
+        "tasks": payload.tasks,
+        "weekly_goals": payload.weekly_goals,
+        "daily_plan": payload.daily_plan,
+    }
     snapshot = session.get(TaskSyncSnapshot, current_user_id)
     if snapshot is None:
         snapshot = TaskSyncSnapshot(user_id=current_user_id, payload=data)
@@ -814,6 +818,7 @@ def pull_tasks(
     return TaskSyncResponse(
         tasks=data.get("tasks", []),
         weekly_goals=data.get("weekly_goals", []),
+        daily_plan=data.get("daily_plan"),
         pushed_at=snapshot.pushed_at,
     )
 

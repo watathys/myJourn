@@ -19,12 +19,20 @@ def test_push_then_pull_round_trips_and_overwrites(
     session.commit()
     url = f"/api/users/{user.id}/task-sync"
 
-    first = {"tasks": [{"id": "a", "goal_text": "One"}], "weekly_goals": [{"id": "g"}]}
+    plan = {"date": "2026-10-20", "selected_task_ids": ["a"], "morning_completed_at": None}
+    first = {
+        "tasks": [{"id": "a", "goal_text": "One", "status": "completed"}],
+        "weekly_goals": [{"id": "g"}],
+        "daily_plan": plan,
+    }
     assert client.put(url, json=first).status_code == 200
     pulled = client.get(url).json()
     assert pulled["tasks"] == first["tasks"]
     assert pulled["weekly_goals"] == first["weekly_goals"]
+    assert pulled["daily_plan"] == plan
 
     second = {"tasks": [], "weekly_goals": []}
     assert client.put(url, json=second).status_code == 200
-    assert client.get(url).json()["tasks"] == []
+    body = client.get(url).json()
+    assert body["tasks"] == []
+    assert body["daily_plan"] is None

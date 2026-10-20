@@ -348,11 +348,14 @@ class TaskSyncPayload(BaseModel):
 
     tasks: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
     weekly_goals: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
+    # Today's focus, so the checklist and "x of y done" travel with the tasks.
+    daily_plan: Optional[dict[str, Any]] = None
 
 
 class TaskSyncResponse(BaseModel):
     tasks: list[dict[str, Any]]
     weekly_goals: list[dict[str, Any]]
+    daily_plan: Optional[dict[str, Any]] = None
     pushed_at: datetime
 
 

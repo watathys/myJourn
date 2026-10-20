@@ -299,13 +299,19 @@ export function saveNorthStar(userId: string, statement: string): Promise<unknow
 export type TaskSyncSnapshot = {
   tasks: Task[]
   weekly_goals: Goal[]
+  daily_plan: DailyPlan | null
   pushed_at: string
 }
 
-export function pushTaskSnapshot(userId: string, tasks: Task[], weeklyGoals: Goal[]): Promise<TaskSyncSnapshot> {
+export function pushTaskSnapshot(
+  userId: string,
+  tasks: Task[],
+  weeklyGoals: Goal[],
+  dailyPlan: DailyPlan | null,
+): Promise<TaskSyncSnapshot> {
   return request(`/users/${userId}/task-sync`, {
     method: 'PUT',
-    body: JSON.stringify({ tasks, weekly_goals: weeklyGoals }),
+    body: JSON.stringify({ tasks, weekly_goals: weeklyGoals, daily_plan: dailyPlan }),
   })
 }
 
