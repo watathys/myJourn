@@ -28,6 +28,7 @@ from app.models import (
     SavedPercyAdvice,
     SpellingCorrection,
     TaskSection,
+    TaskSyncSnapshot,
     User,
     WeeklyPlanningSession,
 )
@@ -65,6 +66,8 @@ from app.schemas import (
     SpellingCorrectionResponse,
     StartWeeklyPlanningRequest,
     TaskResponse,
+    TaskSyncPayload,
+    TaskSyncResponse,
     UpdateGoalRequest,
     UpdateJournalEntryRequest,
     UpdateSectionRequest,
@@ -768,6 +771,51 @@ def upsert_daily_plan(
     session.commit()
     session.refresh(plan)
     return plan
+
+
+# ---------------------------------------------------------------------------
+# Task sync between devices (manual "push tasks" / "pull tasks")
+# ---------------------------------------------------------------------------
+
+
+@router.put("/users/{user_id}/task-sync", response_model=TaskSyncResponse)
+def push_tasks(
+    user_id: str,
+    payload: TaskSyncPayload,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> TaskSyncResponse:
+    if user_id != current_user_id or session.get(User, current_user_id) is None:
+        raise HTTPException(status_code=403, detail="User not found")
+
+    data = {"tasks": payload.tasks, "weekly_goals": payload.weekly_goals}
+    snapshot = session.get(TaskSyncSnapshot, current_user_id)
+    if snapshot is None:
+        snapshot = TaskSyncSnapshot(user_id=current_user_id, payload=data)
+        session.add(snapshot)
+    else:
+        snapshot.payload = data
+    snapshot.pushed_at = datetime.now(timezone.utc)
+    session.commit()
+    session.refresh(snapshot)
+    return TaskSyncResponse(**data, pushed_at=snapshot.pushed_at)
+
+
+@router.get("/users/{user_id}/task-sync", response_model=TaskSyncResponse)
+def pull_tasks(
+    user_id: str,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+) -> TaskSyncResponse:
+    snapshot = session.get(TaskSyncSnapshot, current_user_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="Nothing has been pushed yet")
+    data = snapshot.payload or {}
+    return TaskSyncResponse(
+        tasks=data.get("tasks", []),
+        weekly_goals=data.get("weekly_goals", []),
+        pushed_at=snapshot.pushed_at,
+    )
 
 
 # ---------------------------------------------------------------------------

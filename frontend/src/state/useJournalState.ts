@@ -5,7 +5,7 @@ import {
   deletePercyReminder, deleteSavedPercyAdvice, deleteSection, deleteSpellingCorrection, disconnectGoogle, dismissLifeInsight,
   dismissPercyReminder, finishWeeklyPlanning, generateWeeklyReflection, getDailyPlan,
   getEntries, getGoogleAuthorizeUrl, getGoogleStatus, getLifeInsights, getNorthStar, getPercyReminders,
-  getSavedPercyAdvice, getSections, getSpellingCorrections, getWeeklyPlanningSession,
+  getSavedPercyAdvice, getSections, pullTaskSnapshot, pushTaskSnapshot, getSpellingCorrections, getWeeklyPlanningSession,
   markLifeInsightRead, processEntry, reorderSections, saveDailyPlan, saveNorthStar,
   startWeeklyPlanning, updateJournalEntry,
   type DailyPlan, type Goal, type GoalUpdate, type GoogleStatus, type JournalEntry, type LifeInsight,
@@ -108,6 +108,7 @@ export function useJournalState() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [taskSyncBusy, setTaskSyncBusy] = useState<'push' | 'pull' | null>(null)
 
   // Navigation: main page (home/write), panels and reader overlays.
   const [activePage, setActivePage] = useState<PageId>('home')
@@ -2055,7 +2056,55 @@ export function useJournalState() {
     supabase.auth.signOut()
   }
 
+  /** Upload this device's tasks and weekly goals so another device can pull them. */
+  async function pushTasks() {
+    if (!userId || taskSyncBusy) return
+    setTaskSyncBusy('push')
+    setError('')
+    try {
+      const result = await pushTaskSnapshot(userId, tasks, weeklyGoals)
+      setNotice(`Pushed ${result.tasks.length} ${result.tasks.length === 1 ? 'task' : 'tasks'}. Pull them on your other device.`)
+    } catch (reason: unknown) {
+      setError(`Could not push tasks: ${getErrorMessage(reason)}`)
+    } finally {
+      setTaskSyncBusy(null)
+    }
+  }
+
+  /** Replace this device's tasks and weekly goals with the last pushed copy. */
+  async function pullTasks() {
+    if (!userId || taskSyncBusy) return
+    if (!window.confirm('Pulling replaces the tasks on this device with the last pushed copy. Continue?')) return
+    setTaskSyncBusy('pull')
+    setError('')
+    try {
+      const snapshot = await pullTaskSnapshot(userId)
+      setTasks(sortWorkingTasks(snapshot.tasks))
+      setWeeklyGoals(snapshot.weekly_goals)
+      setCached(cacheKey(userId, 'tasks'), snapshot.tasks)
+      setCached(cacheKey(userId, 'weekly_goals'), snapshot.weekly_goals)
+      try {
+        const plan = await getDailyPlan(userId, journalDay())
+        if (plan) {
+          setDailyPlan(plan)
+          setMorningSelectedIds(plan.selected_task_ids ?? [])
+        }
+      } catch {
+        // Today's focus is refreshed best-effort; tasks are already pulled.
+      }
+      setNotice(`Pulled ${snapshot.tasks.length} ${snapshot.tasks.length === 1 ? 'task' : 'tasks'}.`)
+    } catch (reason: unknown) {
+      const message = getErrorMessage(reason)
+      setError(/nothing has been pushed/i.test(message)
+        ? 'Nothing to pull yet. Push your tasks from your other device first.'
+        : `Could not pull tasks: ${message}`)
+    } finally {
+      setTaskSyncBusy(null)
+    }
+  }
+
   return {
+    taskSyncBusy, pushTasks, pullTasks,
     // session
     sessionUser, authChecking, userId, loading, error, setError, notice, setNotice, signOut,
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from datetime import date as _date
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -341,6 +341,19 @@ class DailyPlanResponse(BaseModel):
     selected_task_ids: list[str]
     morning_completed_at: Optional[datetime] = None
     created_at: datetime
+
+
+class TaskSyncPayload(BaseModel):
+    """Opaque device snapshot of tasks and weekly goals (the app's local lists)."""
+
+    tasks: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
+    weekly_goals: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
+
+
+class TaskSyncResponse(BaseModel):
+    tasks: list[dict[str, Any]]
+    weekly_goals: list[dict[str, Any]]
+    pushed_at: datetime
 
 
 class UpsertDailyPlanRequest(BaseModel):

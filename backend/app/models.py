@@ -431,6 +431,20 @@ class DailyPlan(Base):
     user: Mapped[User] = relationship(back_populates="daily_plans")
 
 
+class TaskSyncSnapshot(Base):
+    """The last "push tasks" snapshot, so another device can "pull tasks"."""
+
+    __tablename__ = "task_sync_snapshots"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    pushed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class WeeklyPlanningSession(Base):
     """Marks that the user has pressed "Start" on weekly planning for a given week."""
 

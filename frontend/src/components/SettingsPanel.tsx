@@ -1,6 +1,6 @@
 import {
-  CalendarDays, CalendarRange, Check, ChevronRight, Clock, Compass, Link2, LogOut, Moon, Plus, Settings,
-  SpellCheck, Sun, Trash2, Unlink, Upload,
+  CalendarDays, CalendarRange, Check, ChevronRight, Clock, Compass, Download, Link2, LogOut, Moon, Plus, Settings,
+  SpellCheck, Sun, Trash2, Unlink, Upload, UploadCloud,
 } from 'lucide-react'
 import { journalDay } from '../lib/day'
 import { useJournal } from '../state/journalContext'
@@ -14,7 +14,7 @@ export function SettingsPanel() {
     newIncorrectDraft, setNewIncorrectDraft, newCorrectDraft, setNewCorrectDraft, addingCorrection,
     addSpellingCorrection, deletingCorrectionId, removeSpellingCorrection, importRows, addImportRow,
     removeImportRow, updateImportRow, importBulkText, setImportBulkText, parseBulkImport, importing,
-    importProgress, startImport, sessionUser, signOut, themeMode, setThemeMode, isNightTime,
+    importProgress, startImport, taskSyncBusy, pushTasks, pullTasks, sessionUser, signOut, themeMode, setThemeMode, isNightTime,
   } = useJournal()
 
   const stagedCount = importRows.filter((row) => row.date && row.text.trim()).length
@@ -48,6 +48,21 @@ export function SettingsPanel() {
           >
             {savingSettings ? <span className="button-spinner" /> : <Check />}
             {savingSettings ? 'Saving...' : northStar === savedNorthStar ? 'Saved' : 'Save changes'}
+          </button>
+        </div>
+      </Card>
+
+      <Card title="Sync tasks between devices" eyebrow="Push & pull" icon={<UploadCloud />}>
+        <p className="alignment">
+          Tasks and today&apos;s focus live on each device. Press Push tasks on the device you just
+          used, then Pull tasks on the other one. Pulling replaces that device&apos;s tasks.
+        </p>
+        <div className="card-actions">
+          <button className="primary-button" disabled={taskSyncBusy !== null} onClick={pushTasks}>
+            {taskSyncBusy === 'push' ? <span className="button-spinner" /> : <UploadCloud />} Push tasks
+          </button>
+          <button className="ghost-button" disabled={taskSyncBusy !== null} onClick={pullTasks}>
+            {taskSyncBusy === 'pull' ? <span className="button-spinner" /> : <Download />} Pull tasks
           </button>
         </div>
       </Card>
