@@ -17,6 +17,9 @@ dependencies = [
   "google-auth-oauthlib>=1.2",
   "openai>=1.60",
   "pgvector>=0.2",
+  # psycopg2 covers local dev; psycopg (v3) is what SQLAlchemy 2.1 uses for
+  # plain postgresql:// URLs and it has wheels for new Python versions.
+  "psycopg[binary]>=3.2",
   "psycopg2-binary>=2.9",
   "pyjwt[crypto]>=2.8",
   "pydantic-settings>=2.7",
